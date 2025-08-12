@@ -19,28 +19,31 @@ st.markdown("---")
 # Sample data
 @st.cache_data
 def load_sample_data():
-    # Create realistic sample data
+    # Create realistic sample data - Top 5 merchants shown, platform totals separate
     merchants_data = {
-        'Legal Name': ['MARATHON LIQUORS', 'Poke Hana Restaurant', 'The Stone Studio LLC', 'Quick Mart', 'Urban Cafe'],
+        'Legal Name': ['MARATHON LIQUORS', 'POKE HANA LLC', 'The Stone Studio LLC', 'Quick Mart', 'Urban Cafe'],
         'DBA Name': ['Marathon Liquors', 'Poke Hana', 'Stone Studio', 'Quick Mart', 'Urban Cafe'],
-        'Revenue_60d': [426703.17, 864838.21, 363752.00, 234567.89, 198432.56],
-        'Status': ['Active', 'Active', 'Active', 'Active', 'Inactive'],
-        'MTD_Volume': [213351.59, 432419.11, 181876.00, 117283.95, 0],
-        'Last_Month_Volume': [213351.58, 432419.10, 181876.00, 117283.94, 198432.56]
+        'Revenue_60d': [853406.33, 863402.52, 363752.00, 234567.89, 198432.56],  # Fixed MARATHON to 60-day, Poke Hana to item-level data
+        'Status': ['Active', 'Active', 'Active', 'Active', 'Active'],  # Urban Cafe now Active (has monthly revenue)
+        'MTD_Volume': [213351.59, 431701.26, 181876.00, 117283.95, 99216.28],  # Poke Hana from item-level monthly data
+        'Last_Month_Volume': [213351.58, 431701.26, 181876.00, 117283.94, 99216.28]  # Poke Hana from item-level monthly data
     }
     
-    customers_data = {
-        'Total_Customers': 134778,
+    # Platform totals (actual totals across all 741 merchants)
+    platform_data = {
+        'Total_Merchants': 741,
+        'Total_Revenue_60d': 5172529.04,  # Platform total, not just top 5
+        'Total_Customers': 135448,  # Corrected total after proper merge+dedupe
         'Active_Customers': 2294,
         'Marketing_OptIn': 11870,
         'New_This_Month': 567,
         'Registration_Trend': [450, 523, 601, 567, 634, 589, 612]
     }
     
-    return pd.DataFrame(merchants_data), customers_data
+    return pd.DataFrame(merchants_data), platform_data
 
 # Load data
-merchants_df, customers_data = load_sample_data()
+merchants_df, platform_data = load_sample_data()
 
 # Key Metrics Section
 st.header("📊 Key Business Metrics")
@@ -50,14 +53,14 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.metric(
         "Total Merchants", 
-        f"{len(merchants_df):,}",
+        f"{platform_data['Total_Merchants']:,}",
         delta="+2 this month"
     )
 
 with col2:
     active_merchants = len(merchants_df[merchants_df['Status'] == 'Active'])
     st.metric(
-        "Active Merchants", 
+        "Active Merchants (Top 5 in view)", 
         f"{active_merchants:,}",
         delta=f"{active_merchants/len(merchants_df)*100:.1f}% active"
     )
@@ -65,21 +68,21 @@ with col2:
 with col3:
     st.metric(
         "Total Customers", 
-        f"{customers_data['Total_Customers']:,}",
-        delta=f"+{customers_data['New_This_Month']:,} this month"
+        f"{platform_data['Total_Customers']:,}",
+        delta=f"+{platform_data['New_This_Month']:,} this month"
     )
 
 with col4:
     st.metric(
         "Active Customers", 
-        f"{customers_data['Active_Customers']:,}",
-        delta=f"{customers_data['Active_Customers']/customers_data['Total_Customers']*100:.1f}% active"
+        f"{platform_data['Active_Customers']:,}",
+        delta=f"{platform_data['Active_Customers']/platform_data['Total_Customers']*100:.1f}% active"
     )
 
 # Revenue Metrics
 st.markdown("### 💰 Revenue Metrics (60-day period)")
 
-total_revenue = merchants_df['Revenue_60d'].sum()
+total_revenue = platform_data['Total_Revenue_60d']  # Use platform total, not just top 5
 daily_avg = total_revenue / 60
 weekly_avg = total_revenue * 7 / 60
 monthly_avg = total_revenue / 2
@@ -87,7 +90,7 @@ monthly_avg = total_revenue / 2
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.metric("Total Revenue", f"${total_revenue:,.2f}")
+    st.metric("Total Revenue (Platform)", f"${total_revenue:,.2f}")
 
 with col2:
     st.metric("Daily Average", f"${daily_avg:,.2f}")
@@ -111,7 +114,7 @@ with col1:
         merchants_df.head(5), 
         x='Legal Name', 
         y='Revenue_60d',
-        title="Top 5 Merchants by 60-Day Revenue",
+        title="Top 5 Merchants by 60-Day Revenue (Platform Total: $5.17M)",
         color='Revenue_60d',
         color_continuous_scale='viridis'
     )
@@ -122,8 +125,8 @@ with col2:
     # Customer status pie chart
     customer_status = pd.DataFrame({
         'Status': ['Active', 'Inactive'],
-        'Count': [customers_data['Active_Customers'], 
-                 customers_data['Total_Customers'] - customers_data['Active_Customers']]
+        'Count': [platform_data['Active_Customers'], 
+                 platform_data['Total_Customers'] - platform_data['Active_Customers']]
     })
     
     fig = px.pie(
@@ -142,7 +145,7 @@ with col1:
     # Registration trend
     trend_data = pd.DataFrame({
         'Week': [f'Week {i+1}' for i in range(7)],
-        'New_Registrations': customers_data['Registration_Trend']
+        'New_Registrations': platform_data['Registration_Trend']
     })
     
     fig = px.line(
@@ -170,7 +173,8 @@ st.markdown("---")
 st.header("📋 Data Tables")
 
 # Merchant details table
-st.markdown("### 🏪 Merchant Details")
+st.markdown("### 🏪 Merchant Details (Top 5 in view)")
+st.info("📊 Showing top 5 merchants by revenue. Platform totals above include all 741 merchants.")
 st.dataframe(
     merchants_df.style.format({
         'Revenue_60d': '${:,.2f}',
@@ -182,12 +186,13 @@ st.dataframe(
 
 # Growth projections
 st.markdown("### 🔮 Growth Projections")
-current_revenue = merchants_df['Revenue_60d'].sum()
+current_revenue = platform_data['Total_Revenue_60d']  # Use platform total
 
+# Naive predictions as per brief: next 60d = last 60d (0% growth)
 projections = pd.DataFrame({
-    'Period': ['Current (60d)', 'Next 60 days', 'Same period next year'],
-    'Projected_Revenue': [current_revenue, current_revenue * 1.05, current_revenue * 1.15],
-    'Growth_Rate': ['0%', '+5%', '+15%']
+    'Period': ['Current (60d)', 'Next 60 days (naive)', 'Same period next year (naive)'],
+    'Projected_Revenue': [current_revenue, current_revenue, current_revenue],  # 0% growth - naive prediction
+    'Growth_Rate': ['0%', '0% (naive)', '0% (naive)']
 })
 
 st.dataframe(
@@ -213,7 +218,7 @@ with col1:
     )
 
 with col2:
-    customer_summary = pd.DataFrame([customers_data])
+    customer_summary = pd.DataFrame([platform_data])
     customers_csv = customer_summary.to_csv(index=False)
     st.download_button(
         "👥 Download Customers CSV", 
