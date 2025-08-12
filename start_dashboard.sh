@@ -24,14 +24,10 @@ source .venv/bin/activate
 echo "📥 Installing dependencies..."
 pip install -r requirements.txt > /dev/null 2>&1
 
-echo "🔍 Running data analysis..."
-python data_analysis.py
-
-echo ""
-echo "📊 Starting interactive dashboard..."
-echo "🌐 Dashboard will be available at: http://127.0.0.1:8050"
+echo " Starting Streamlit dashboard..."
+echo "🌐 Dashboard will be available at: http://localhost:8501"
 echo "💡 Press Ctrl+C to stop the dashboard"
 echo ""
 
-# Start the dashboard
-python dashboard.py
+# Start the Streamlit dashboard
+streamlit run dashboard.py
