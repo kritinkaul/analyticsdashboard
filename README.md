@@ -2,6 +2,12 @@
 
 A robust Streamlit dashboard that computes payment platform metrics from local data folders with no hardcoded values. Implements exact business rules for customer/merchant activity, deduplication, and sales aggregation.
 
+## 🚀 Live Demo
+
+**View the demo dashboard:** [https://swipe-savvyintern-irsd22aa2-kritinkauls-projects.vercel.app](https://swipe-savvyintern-irsd22aa2-kritinkauls-projects.vercel.app)
+
+*Note: The live demo shows sample data. For full functionality with your own data, follow the local installation instructions below.*
+
 ## Features
 
 - **Real-time ETL Pipeline**: Automatically discovers and processes data files
@@ -50,10 +56,41 @@ data/
 ### Running the Dashboard
 
 ```bash
-streamlit run app.py
+streamlit run dashboard.py
 ```
 
 The dashboard will be available at `http://localhost:8501`
+
+## Deployment Options
+
+This project supports multiple deployment methods:
+
+### 1. Streamlit (Recommended for local use)
+```bash
+streamlit run dashboard.py
+```
+
+### 2. Python Web Server
+```bash
+python web_dashboard.py
+# Access at http://localhost:8000
+```
+
+### 3. Command Line Analytics
+```bash
+python run_dashboard.py
+# Generates detailed report to console
+```
+
+### 4. Simple Streamlit Version
+```bash
+streamlit run simple_dashboard.py
+```
+
+### 5. Cloud Deployment (Vercel)
+- **Live Demo**: [https://swipe-savvyintern-irsd22aa2-kritinkauls-projects.vercel.app](https://swipe-savvyintern-irsd22aa2-kritinkauls-projects.vercel.app)
+- Shows sample data (cloud version cannot access local files)
+- See `DEPLOYMENT_GUIDE.md` for deployment instructions
 
 ### Running ETL Only
 
