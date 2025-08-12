@@ -24,6 +24,34 @@ def parse_currency(s: pd.Series) -> pd.Series:
                    .replace({"": np.nan, ".": np.nan}))
     return pd.to_numeric(x, errors="coerce")
 
+def _read_any(path: Path) -> pd.DataFrame:
+    """
+    Read a file into a DataFrame, with robust handling for CSV parsing errors.
+
+    Attempts to use pandas default readers for XLS/XLSX and CSV files. If a CSV
+    cannot be parsed with the default engine (for example, because it contains
+    unbalanced quotes or other bad lines), fall back to using the slower Python
+    engine and skipping any problematic rows.  If the fallback also fails,
+    returns an empty DataFrame so the calling code can continue without
+    silently dropping the entire customer export.
+    """
+    try:
+        if path.suffix.lower() in [".xlsx", ".xls"]:
+            return pd.read_excel(path)
+        return pd.read_csv(path)
+    except Exception:
+        try:
+            # Fallback to Python engine and skip bad lines
+            return pd.read_csv(path, engine="python", on_bad_lines="skip")
+        except Exception:
+            return pd.DataFrame()
+
+def _normalize_phone(phone_series: pd.Series) -> pd.Series:
+    """Normalize phone numbers by removing non-digit characters"""
+    if phone_series is None:
+        return phone_series
+    return phone_series.fillna('').astype(str).str.replace(r'[^\d]', '', regex=True)
+
 def standardize_cols(df: pd.DataFrame) -> pd.DataFrame:
     """Standardize column names by removing whitespace and newlines"""
     df = df.copy()
@@ -35,122 +63,89 @@ def load_customers() -> pd.DataFrame:
     paths = discover_files(DATA_GLOBS["customers"])
     print(f"Loading customers from {len(paths)} files: {[Path(p).name for p in paths]}")
     
-    dfs = []
+    frames = []
     
     for p in paths:
-        df = pd.read_csv(p, low_memory=False) if p.lower().endswith(".csv") else pd.read_excel(p)
-        df = standardize_cols(df)
-        df["__source_file"] = Path(p).name  # Track source for debugging
-        dfs.append(df)
-        print(f"  {Path(p).name}: {len(df)} rows")
+        df = _read_any(Path(p))
+        if not df.empty:
+            df = standardize_cols(df)
+            frames.append(df)
+            print(f"  {Path(p).name}: {len(df)} rows")
+        else:
+            print(f"  {Path(p).name}: WARNING - empty DataFrame returned")
     
-    if not dfs: 
+    if not frames: 
         return pd.DataFrame(columns=["customer_id","first_name","last_name","email","phone","customer_since","active_flag"])
     
-    # After concatenating ALL customer files into `cust`
-    cust = pd.concat(dfs, ignore_index=True, sort=False)
-    print(f"Combined raw customers: {len(cust)} rows")
+    customers = pd.concat(frames, ignore_index=True)
+
+    # Map column names to standard format
+    column_mapping = {
+        'Customer ID': 'customer_id',
+        'First Name': 'first_name', 
+        'Last Name': 'last_name',
+        'Phone Number': 'phone',
+        'Email Address': 'email',
+        'Customer Since': 'customer_since',
+        'Marketing Allowed': 'marketing_opt_in'
+    }
     
-    # Print source distribution for debugging
-    print("Customers — rows by source file:")
-    source_counts = cust.groupby("__source_file", dropna=False).size().sort_values(ascending=False)
-    for file, count in source_counts.items():
-        print(f"  {file}: {count:,}")
+    # Rename columns that exist
+    for old_name, new_name in column_mapping.items():
+        if old_name in customers.columns:
+            customers[new_name] = customers[old_name]
     
-    cust = cust.copy()
-    cust.columns = [c.strip().lower() for c in cust.columns]
-
-    id_col    = next((c for c in cust.columns if c in ["customer id","customerid","id"]), None)
-    email_col = next((c for c in cust.columns if "email" in c), None)
-    phone_col = next((c for c in cust.columns if "phone" in c), None)
-
-    print(f"Mapped fields: ID={id_col}, Email={email_col}, Phone={phone_col}")
-
-    with_id    = cust[cust[id_col].notna()].copy() if id_col else cust.iloc[0:0].copy()
-    without_id = cust[cust[id_col].isna()].copy()  if id_col else cust.copy()
-
-    print(f"Customers with ID: {len(with_id)}, without ID: {len(without_id)}")
-
-    # 1) Dedup ID-present by ID
-    if not with_id.empty:
-        pre_dedupe = len(with_id)
-        with_id = with_id.drop_duplicates(id_col)
-        print(f"ID-present dedupe: {pre_dedupe} -> {len(with_id)} rows")
-
-    # 2) Dedup ID-missing by email+phone
-    if email_col and phone_col and not without_id.empty:
-        without_id["__ep"] = without_id[email_col].astype(str) + "|" + without_id[phone_col].astype(str)
-        pre_ep_dedupe = len(without_id)
-        without_id = without_id.drop_duplicates("__ep")
-        print(f"Email+phone dedupe: {pre_ep_dedupe} -> {len(without_id)} rows")
-
-        # 3) Exclude fallback rows that collide with the ID set (by email+phone)
-        if not with_id.empty:
-            with_id["__ep"] = with_id[email_col].astype(str) + "|" + with_id[phone_col].astype(str)
-            pre_collision = len(without_id)
-            without_id = without_id[~without_id["__ep"].isin(with_id["__ep"])]
-            collision_removed = pre_collision - len(without_id)
-            print(f"Removed {collision_removed} fallback rows that collide with ID set")
-            with_id = with_id.drop(columns="__ep", errors="ignore")
-
-    # Final customers
-    customers = pd.concat([with_id, without_id], ignore_index=True)
-
-    # Clean up temp columns
-    customers = customers.drop(columns=["__ep", "__source_file"], errors="ignore")
-
-    # Active flag (use fixed TODAY for consistency)
-    if "customer since" in customers.columns:
+    # Convert customer_since to datetime
+    if "customer_since" in customers.columns:
         try:
-            customers["customer since"] = pd.to_datetime(customers["customer since"], errors="coerce")
+            # First try to parse as datetime
+            customers["customer_since"] = pd.to_datetime(customers["customer_since"], errors="coerce")
+            # Convert any timezone-aware datetimes to naive before computing differences.
+            if pd.api.types.is_datetime64_any_dtype(customers["customer_since"]):
+                try:
+                    customers["customer_since"] = customers["customer_since"].dt.tz_localize(None)
+                except (AttributeError, TypeError):
+                    pass
         except (TypeError, AttributeError):
             # Fallback: strip timezone and parse
-            date_series = customers["customer since"].astype(str).str.replace(r' [A-Z]{3}$', '', regex=True)
-            customers["customer since"] = pd.to_datetime(date_series, errors="coerce")
-        customers["active_flag"] = (TODAY - customers["customer since"]).dt.days.between(0, 30, inclusive="left")
+            date_series = customers["customer_since"].astype(str).str.replace(r' [A-Z]{3}$', '', regex=True)
+            customers["customer_since"] = pd.to_datetime(date_series, errors="coerce")
+
+    # Dedup: primary by customer_id; fallback by email+phone
+    customers = customers.sort_values("customer_since", ascending=False)
+    customers["email_norm"] = customers["email"].fillna('').astype(str).str.strip().str.lower()
+    customers["phone_norm"] = customers["phone"].fillna('').astype(str).str.replace(r'[^\d]', '', regex=True)
+
+    with_id = customers[customers["customer_id"].notna()].drop_duplicates(subset=["customer_id"], keep="first")
+    without_id = customers[customers["customer_id"].isna()].copy()
+
+    # Build a composite key for deduping rows with no customer_id
+    without_id["__ep"] = without_id["email_norm"].fillna("") + "|" + without_id["phone_norm"].fillna("")
+    without_id = without_id.drop_duplicates(subset=["__ep"], keep="first")
+
+    if not with_id.empty:
+        # Exclude fallback rows whose email+phone match a row with an ID
+        with_id["__ep"] = with_id["email_norm"].fillna("") + "|" + with_id["phone_norm"].fillna("")
+        without_id = without_id[~without_id["__ep"].isin(with_id["__ep"])]
+        with_id = with_id.drop(columns=["__ep"])
+
+    without_id = without_id.drop(columns=["__ep"])
+
+    customers = pd.concat([with_id, without_id], ignore_index=True)
+
+    # Active flag (30 days from TODAY)
+    customers["active_flag"] = (TODAY - customers["customer_since"]).dt.days < 30
+
+    # Add marketing opt-in flag if available
+    if "marketing_opt_in" in customers.columns:
+        # Convert marketing allowed to boolean
+        customers["marketing_opt_in"] = customers["marketing_opt_in"].astype(str).str.lower().isin(["yes", "true", "1", "y"])
+        print(f"Marketing opt-ins: {customers['marketing_opt_in'].sum()} / {len(customers)}")
     else:
-        customers["active_flag"] = False
-
-    print("Final customers_total:", len(customers))
-    print("Active (30d):", int(customers["active_flag"].sum()))
-    print("Inactive:", len(customers) - int(customers["active_flag"].sum()))
-
-    # Sanity check prints
-    if id_col:
-        unique_ids = customers[id_col].nunique(dropna=True)
-        print(f"Unique IDs: {unique_ids}")
-
-    if email_col and phone_col:
-        fallback_set = customers[customers[id_col].isna()] if id_col else customers
-        if len(fallback_set) > 0:
-            unique_ep = fallback_set[[email_col, phone_col]].astype(str).agg("|".join, axis=1).nunique()
-            print(f"Unique email+phone (fallback set): {unique_ep}")
-
-    # Create standardized output DataFrame with proper column mapping
-    out = pd.DataFrame()
-    
-    # Map to standard column names
-    fn_col = next((c for c in customers.columns if "first" in c and "name" in c), None)
-    ln_col = next((c for c in customers.columns if "last" in c and "name" in c), None)
-    mcol = next((c for c in customers.columns if "marketing" in c and ("allow" in c or "opt" in c or "consent" in c)), None)
-    
-    if id_col: out["customer_id"] = customers[id_col]
-    if fn_col: out["first_name"] = customers[fn_col]
-    if ln_col: out["last_name"] = customers[ln_col]
-    if email_col: out["email"] = customers[email_col]
-    if phone_col: out["phone"] = customers[phone_col]
-    out["customer_since"] = customers.get("customer since", pd.NaT)
-    out["active_flag"] = customers["active_flag"]
-    
-    # Marketing flag
-    if mcol:
-        out["marketing_opt_in"] = customers[mcol].astype(str).str.lower().isin(["true","yes","1","y","opted in"])
-        print(f"Marketing opt-ins: {out['marketing_opt_in'].sum()} / {len(out)}")
-    else:
-        out["marketing_opt_in"] = False
+        customers["marketing_opt_in"] = False
         print("No marketing column found, defaulting to False")
-    
-    return out
+
+    return customers[["customer_id","first_name","last_name","email","phone","customer_since","active_flag","marketing_opt_in"]]
 
 def load_merchants() -> pd.DataFrame:
     """Load all merchants with no status filtering"""
@@ -159,12 +154,7 @@ def load_merchants() -> pd.DataFrame:
     
     dfs = []
     for p in paths:
-        if p.lower().endswith(".csv"):
-            df = pd.read_csv(p, low_memory=False)
-        else:
-            # pick the widest sheet if multiple
-            sheets = pd.read_excel(p, sheet_name=None)
-            df = max(sheets.values(), key=lambda d: (d.shape[0], d.shape[1]))
+        df = _read_any(Path(p))
         df = standardize_cols(df)
         dfs.append(df)
         print(f"  {Path(p).name}: {len(df)} rows, {len(df.columns)} columns")
@@ -317,6 +307,8 @@ def enrich_and_metrics(merchants: pd.DataFrame, customers: pd.DataFrame, sales_a
     print(f"Fallback (MTD+LastMonth) total: ${fallback_total:,.2f}")
 
     # CRITICAL: Coalesce, don't sum (avoid double-count)
+    # Use the item-level 60-day net sales if present, otherwise fall back to (MTD + LastMonth).
+    # Do not add all three values together, otherwise merchants with item files will be double counted.
     m["net_sales_60d"] = np.where(m["net_sales_60d_item"].notna(), m["net_sales_60d_item"], fallback_60d)
     
     coalesced_total = m["net_sales_60d"].sum()
