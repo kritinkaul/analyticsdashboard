@@ -1,14 +1,6 @@
 {
-  "version": 2,
-  "functions": {
-    "api/index.py": {
-      "runtime": "@vercel/python@4.1.0"
-    }
-  },
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/api/index.py"
-    }
+    { "src": "/", "dest": "/index.html" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
