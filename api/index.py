@@ -1,11 +1,6 @@
-#!/usr/bin/env python3
-"""
-Static demo version for Vercel deployment
-"""
 from http.server import BaseHTTPRequestHandler
-import json
 
-class Handler(BaseHTTPRequestHandler):
+class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         # Demo data (since Vercel can't access local data files)
         demo_data = {
@@ -177,7 +172,3 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Cache-Control', 'public, max-age=3600')
         self.end_headers()
         self.wfile.write(html_content.encode())
-
-# Vercel handler
-def handler(request, context=None):
-    return Handler(request, context)
