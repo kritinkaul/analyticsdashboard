@@ -1,106 +1,159 @@
-# Business Analytics Dashboard
+# Payment Platform Analytics Dashboard
 
-This project analyzes merchant, customer, and sales data to provide comprehensive business metrics and predictions.
+A robust Streamlit dashboard that computes payment platform metrics from local data folders with no hardcoded values. Implements exact business rules for customer/merchant activity, deduplication, and sales aggregation.
 
 ## Features
 
-- **Customer Analytics**: Track total customers, active/inactive status, marketing opt-ins
-- **Merchant Analytics**: Monitor merchant performance, processing volumes, active/inactive status  
-- **Sales Predictions**: Forecast sales for next 2 months and same period next year
-- **Interactive Dashboard**: Web-based dashboard with charts and data tables
-- **Top Customer Identification**: Identify top 3 most valuable/potential customers
+- **Real-time ETL Pipeline**: Automatically discovers and processes data files
+- **Proper Deduplication**: ID-first customer deduplication with email+phone fallback
+- **Business Rules**: 60-day sales window, 30-day customer activity, coalesced merchant sales
+- **Interactive Dashboard**: Streamlit UI with KPIs, charts, and data exports
+- **DIFF Reporting**: Tracks changes between pipeline runs
+- **Data Protection**: PII hidden in customer exports
 
-## Data Analysis Results
+## Quick Start
 
-### Key Metrics (60-day period: Feb 7 - Aug 8, 2025)
+### Prerequisites
 
-#### Customer Metrics
-- **Total Customers**: 21,997
-- **Active Customers** (last 30 days): 1,152 (5.2%)
-- **Inactive Customers**: 20,845 (94.8%)
-- **Marketing Opt-ins**: 2,602 (11.8%)
+- Python 3.8+
+- Virtual environment (recommended)
 
-#### Merchant Metrics  
-- **Total Merchants**: 3
-- **Active Merchants**: 3 (100%)
-- **Inactive Merchants**: 0
+### Installation
 
-#### Processing Volume
-- **Total Volume** (60 days): $780,794.22
-- **Daily Average**: $13,013.24
-- **Weekly Average**: $91,092.66  
-- **Monthly Average**: $390,397.11
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd DashboardData
+```
 
-#### Top Merchants by Volume
-1. **MARATHON LIQUORS**: $426,703.17 ($213,351.58/month)
-2. **POKE HANA**: $287,800.86 ($143,900.43/month)  
-3. **Anthony's Pizza & Pasta**: $66,290.19 ($33,145.10/month)
+2. Create and activate virtual environment:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
 
-#### Sales Predictions
-- **Next 2 Months Platform Total**: $780,794.22
-- **Same Period Next Year**: $858,873.64 (10% growth projected)
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-#### Top 3 Potential Customers
-1. Abigail Eischen (Score: 9, Recent join)
-2. Yasmin Lansiquot (Score: 9, Recent join)
-3. Diane Goskie (Score: 9, Recent join)
+### Data Setup
 
-## Files
+Place your data files in the following structure:
+```
+data/
+├── customers/          # Customer CSV/Excel files
+├── merchants/          # Merchant CSV/Excel files  
+└── sales/             # Revenue Item Sales reports
+```
 
-- `data_analysis.py` - Main analysis script
-- `dashboard.py` - Interactive web dashboard
-- `analysis_report.json` - Detailed analysis results
-- `requirements.txt` - Python dependencies
+### Running the Dashboard
 
-## Setup and Usage
+```bash
+streamlit run app.py
+```
 
-1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+The dashboard will be available at `http://localhost:8501`
 
-2. Run the analysis:
-   ```bash
-   python data_analysis.py
-   ```
+### Running ETL Only
 
-3. Start the dashboard:
-   ```bash
-   python dashboard.py
-   ```
+```python
+from src.etl import run_pipeline_from_folders
+result = run_pipeline_from_folders()
+print(f"Customers: {result['metrics']['customers_total']}")
+print(f"Merchants: {result['metrics']['merchants_total']}")
+print(f"Platform Volume: ${result['metrics']['platform_total_60d']:,.2f}")
+```
 
-4. Open browser to: http://127.0.0.1:8050
+## Architecture
 
-## Data Sources
+### Components
 
-The analysis processes the following data files:
-- Customer registration data (CSV)
-- Revenue item sales reports (CSV) 
-- Inventory exports (Excel)
+- **`src/config.py`**: Configuration constants and data discovery patterns
+- **`src/utils.py`**: File discovery utilities
+- **`src/etl.py`**: Complete ETL pipeline with business rules
+- **`app.py`**: Streamlit dashboard application
 
-## Analysis Methodology
+### Business Rules
 
-### Active/Inactive Status Definitions
-- **Active Customers**: Registered within last 30 days
-- **Active Merchants**: Have sales revenue in the data period
-- **Inactive Merchants**: No sales for >30 days (none in current dataset)
+- **Customer Deduplication**: Customer ID first, fallback to email+phone (collision prevention)
+- **Merchant Processing**: No status filtering, includes all merchants
+- **Sales Aggregation**: Item reports preferred, fallback to MTD + Last Month
+- **Activity Flags**: 30-day customers, 60-day merchants
+- **Coalescing**: No double-counting of sales data
 
-### Sales Predictions
-- **Next 2 Months**: Based on current 60-day average performance
-- **Same Period Next Year**: Assumes 10% annual growth rate
-- **Volume Calculations**: 60-day data averaged for daily/weekly/monthly metrics
+## Current Metrics
 
-### Customer Scoring
-Top customers identified based on:
-- Recent registration (last 7 days): +3 points
-- Marketing opt-in: +2 points  
-- Complete profile (name): +2 points
-- Phone number: +1 point
-- Email address: +1 point
+Based on the latest data (2025-08-11):
 
-## Technical Notes
+- **Merchants**: 741 total, 64 active (8.6%)
+- **Customers**: 134,778 total, 2,294 active (1.7%)
+- **Platform Volume**: $5,172,529.04 (60d)
+- **Daily Average**: $86,208.82
+- **Marketing Opt-ins**: 11,870 (8.8%)
 
-- Data period: 60 days (Feb 7, 2025 - Aug 8, 2025)
-- All revenue figures are net sales after discounts/refunds
-- Customer analysis based on registration timestamps
-- Dashboard built with Plotly Dash and Bootstrap
+## Configuration
+
+### File Discovery Patterns
+
+```python
+DATA_GLOBS = {
+    "merchants": ["data/merchants/**/*.[cC][sS][vV]", "data/merchants/**/*.[xX][lL][sS][xX]"],
+    "customers": ["data/customers/**/*.[cC][sS][vV]", "data/customers/**/*.[xX][lL][sS][xX]"], 
+    "sales": ["data/sales/**/*Revenue Item Sales*.csv"]
+}
+```
+
+### Date Reference
+
+```python
+TODAY = pd.Timestamp("2025-08-11")  # Fixed for reproducibility
+```
+
+## Data Export
+
+The dashboard provides CSV downloads for:
+
+- **Metrics Summary**: All KPIs and platform totals
+- **Top 3 Merchants**: Highest volume merchants
+- **Cleaned Customers**: Deduped customer data (PII redacted)
+- **Cleaned Merchants**: Processed merchant data
+- **Diagnostics**: Pipeline statistics and coverage
+
+## Development
+
+### Testing
+
+```bash
+# Test ETL pipeline
+python -c "from src.etl import run_pipeline_from_folders; run_pipeline_from_folders()"
+
+# Test Streamlit app
+streamlit run app.py --server.headless true
+```
+
+### Adding New Data Sources
+
+1. Update `DATA_GLOBS` patterns in `src/config.py`
+2. Add column mapping logic in respective load functions
+3. Update business rules if needed
+
+## Troubleshooting
+
+### Common Issues
+
+- **File not found**: Check data folder structure and file patterns
+- **Date parsing errors**: Verify date format consistency
+- **Import errors**: Ensure virtual environment is activated
+
+### Logs and Diagnostics
+
+The ETL pipeline prints detailed diagnostics:
+- File discovery results
+- Row counts and deduplication stats
+- Join coverage and validation checks
+- DIFF reports for change tracking
+
+## License
+
+This project is for internal use and analytics purposes.

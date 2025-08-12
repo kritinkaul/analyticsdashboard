@@ -1,0 +1,40 @@
+{
+  "merchants_total": 741,
+  "merchants_active": 64,
+  "merchants_inactive": 677,
+  "merchants_with_item_data": 3,
+  "customers_total": 134778,
+  "customers_active": 2294,
+  "customers_inactive": 132484,
+  "customers_marketing": 11870,
+  "platform_total_60d": 5172529.04,
+  "platform_daily": 86208.82,
+  "platform_weekly": 603461.72,
+  "platform_monthly": 2586264.52,
+  "top3": [
+    {
+      "legal_name": "POKE HANA LLC",
+      "dba_name": "POKE HANA",
+      "net_sales_60d": 863402.52,
+      "daily_est": 14390.042,
+      "weekly_est": 100730.29400000001,
+      "monthly_est": 431701.26
+    },
+    {
+      "legal_name": "MARATHON LIQUORS",
+      "dba_name": "MARATHON LIQUORS",
+      "net_sales_60d": 853406.3300000001,
+      "daily_est": 14223.438833333335,
+      "weekly_est": 99564.07183333334,
+      "monthly_est": 426703.16500000004
+    },
+    {
+      "legal_name": "MARATHON LIQUORS INC",
+      "dba_name": "MARATHON LIQUORS",
+      "net_sales_60d": 853406.3300000001,
+      "daily_est": 14223.438833333335,
+      "weekly_est": 99564.07183333334,
+      "monthly_est": 426703.16500000004
+    }
+  ]
+}
