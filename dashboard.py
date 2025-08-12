@@ -24,7 +24,7 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = "Business Dashboard - Merchant & Customer Analytics"
 
 # Extract data for dashboard
-customers = report['customers']
+metrics = report['metrics']
 merchants = report['merchants']
 predictions = report['predictions']
 top_customers = report['top_customers']
@@ -43,7 +43,7 @@ def create_metric_card(title, value, subtitle="", color="primary"):
 def create_customer_chart():
     """Create customer breakdown chart"""
     labels = ['Active (Last 30 days)', 'Inactive']
-    values = [customers['active_customers'], customers['inactive_customers']]
+    values = [metrics['customers_active'], metrics['customers_inactive']]
     colors = ['#28a745', '#dc3545']
     
     fig = go.Figure(data=[go.Pie(
@@ -60,9 +60,14 @@ def create_customer_chart():
 
 def create_merchant_volume_chart():
     """Create merchant volume comparison chart"""
-    merchant_data = merchants['merchant_metrics']
-    names = list(merchant_data.keys())
-    volumes = [merchant_data[name]['net_sales'] for name in names]
+    # Extract merchant data from the merchants list
+    names = []
+    volumes = []
+    for merchant in merchants:
+        name = merchant.get('legal_name', merchant.get('dba_name', 'Unknown'))
+        volume = merchant.get('net_sales_60d_final', 0)
+        names.append(name)
+        volumes.append(volume)
     
     fig = go.Figure(data=[go.Bar(
         x=names,
@@ -117,14 +122,12 @@ def create_predictions_chart():
 
 def create_volume_timeline_chart():
     """Create volume timeline chart"""
-    merchant_data = merchants['merchant_metrics']
-    
     # Create data for daily/weekly/monthly view
     periods = ['Daily Average', 'Weekly Average', 'Monthly Average']
     total_volumes = [
-        merchants['daily_platform_volume'],
-        merchants['weekly_platform_volume'],
-        merchants['monthly_platform_volume']
+        metrics['daily'],
+        metrics['weekly'],
+        metrics['monthly']
     ]
     
     fig = go.Figure(data=[go.Bar(
@@ -157,32 +160,32 @@ app.layout = dbc.Container([
         dbc.Col([
             create_metric_card(
                 "Total Customers",
-                f"{customers['total_customers']:,}",
-                f"Active: {customers['active_customers']:,} | Inactive: {customers['inactive_customers']:,}",
+                f"{metrics['customers_total']:,}",
+                f"Active: {metrics['customers_active']:,} | Inactive: {metrics['customers_inactive']:,}",
                 "info"
             )
         ], width=3),
         dbc.Col([
             create_metric_card(
                 "Total Merchants",
-                f"{merchants['total_merchants']}",
-                f"Active: {merchants['active_merchants']} | Inactive: {merchants['inactive_merchants']}",
+                f"{metrics['merchants_total']}",
+                f"Active: {metrics['merchants_active']} | Inactive: {metrics['merchants_inactive']}",
                 "success"
             )
         ], width=3),
         dbc.Col([
             create_metric_card(
                 "Total Volume (60 days)",
-                f"${merchants['total_volume']:,.0f}",
-                f"Monthly Avg: ${merchants['monthly_platform_volume']:,.0f}",
+                f"${metrics['total_60d']:,.0f}",
+                f"Monthly Avg: ${metrics['monthly']:,.0f}",
                 "warning"
             )
         ], width=3),
         dbc.Col([
             create_metric_card(
                 "Marketing Opt-ins",
-                f"{customers['marketing_allowed']:,}",
-                f"{(customers['marketing_allowed']/customers['total_customers']*100):.1f}% of customers",
+                f"{metrics['customers_marketing']:,}",
+                f"{(metrics['customers_marketing']/metrics['customers_total']*100):.1f}% of customers",
                 "danger"
             )
         ], width=3),
@@ -215,13 +218,13 @@ app.layout = dbc.Container([
             dash_table.DataTable(
                 data=[
                     {
-                        'Merchant': name,
-                        'Net Sales (60 days)': f"${data['net_sales']:,.2f}",
-                        'Monthly Average': f"${data['monthly_avg']:,.2f}",
-                        'Daily Average': f"${data['daily_avg']:,.2f}",
-                        'Status': 'Active' if data['is_active'] else 'Inactive'
+                        'Merchant': merchant.get('legal_name', merchant.get('dba_name', 'Unknown')),
+                        'Net Sales (60 days)': f"${merchant.get('net_sales_60d_final', 0):,.2f}",
+                        'Monthly Average': f"${merchant.get('monthly_volume_est', 0):,.2f}",
+                        'Daily Average': f"${merchant.get('daily_volume_est', 0):,.2f}",
+                        'Status': 'Active' if merchant.get('active_flag', False) else 'Inactive'
                     }
-                    for name, data in merchants['merchant_metrics'].items()
+                    for merchant in merchants
                 ],
                 columns=[
                     {'name': 'Merchant', 'id': 'Merchant'},
@@ -248,10 +251,10 @@ app.layout = dbc.Container([
             dash_table.DataTable(
                 data=[
                     {
-                        'Customer ID': customer['Customer ID'],
-                        'Name': f"{customer.get('First Name', '')} {customer.get('Last Name', '')}".strip() or 'N/A',
-                        'Joined Date': str(customer['Customer Since'])[:10] if customer['Customer Since'] else 'N/A',
-                        'Marketing Allowed': customer['Marketing Allowed'],
+                        'Customer ID': customer['customer_id'],
+                        'Name': f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip() or 'N/A',
+                        'Joined Date': str(customer['customer_since'])[:10] if customer.get('customer_since') else 'N/A',
+                        'Marketing Allowed': customer.get('marketing_allowed', 'N/A'),
                         'Potential Score': customer['score']
                     }
                     for customer in top_customers

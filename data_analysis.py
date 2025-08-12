@@ -18,250 +18,352 @@ import os
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 import re
+import io
+from pathlib import Path
 
 warnings.filterwarnings('ignore')
+
+# Constants
+TODAY = pd.Timestamp("2025-08-11")
 
 class DashboardAnalyzer:
     def __init__(self, data_dir):
         self.data_dir = data_dir
         self.customers_df = None
-        self.revenue_data = {}
-        self.merchant_data = {}
-        self.current_date = datetime(2025, 8, 8)  # Based on data timestamps
+        self.merchants_df = None
+        self.sales_df = None
+        self.current_date = TODAY
         
-    def load_data(self):
-        """Load all data files"""
-        print("Loading data files...")
+        # File discovery
+        self.discover_files()
         
-        # Load customer data
-        customer_files = glob.glob(os.path.join(self.data_dir, "Customers-*.csv"))
-        if customer_files:
-            # Use the most recent customer file
-            latest_customer_file = max(customer_files, key=os.path.getctime)
-            print(f"Loading customer data from: {latest_customer_file}")
-            self.customers_df = pd.read_csv(latest_customer_file)
-            
-        # Load revenue data
-        revenue_files = glob.glob(os.path.join(self.data_dir, "*Revenue Item Sales*.csv"))
-        for file in revenue_files:
-            merchant_name = os.path.basename(file).split('-Revenue')[0]
-            print(f"Loading revenue data for: {merchant_name}")
-            self.revenue_data[merchant_name] = self.parse_revenue_file(file)
-            
-        # Load Excel files for merchant data
-        excel_files = glob.glob(os.path.join(self.data_dir, "*.xlsx"))
-        for file in excel_files:
-            try:
-                if 'customer_list' in file:
-                    print(f"Loading additional customer data from: {file}")
-                    excel_customers = pd.read_excel(file)
-                    # Merge or update customer data if needed
-                elif 'inventory' in file:
-                    print(f"Loading inventory data from: {file}")
-                    # Process inventory data if needed for merchant metrics
-            except Exception as e:
-                print(f"Error loading {file}: {e}")
-                
-    def parse_revenue_file(self, file_path):
-        """Parse revenue item sales files"""
-        import csv
+    def discover_files(self):
+        """Discover all data files in the directory"""
+        print("Discovering data files...")
         
-        # Read the file and parse properly
-        gross_sales = 0
-        net_sales = 0
-        date_range = ""
+        # Find merchant files (Excel)
+        self.merchant_files = (glob.glob(os.path.join(self.data_dir, "**/*customer_list*.[xX][lL][sS][xX]"), recursive=True) +
+                              glob.glob(os.path.join(self.data_dir, "**/*customer_list*.[xX][lL][sS]"), recursive=True) +
+                              glob.glob(os.path.join(self.data_dir, "**/*merchant*.[xX][lL][sS][xX]"), recursive=True) +
+                              glob.glob(os.path.join(self.data_dir, "**/*merchant*.[xX][lL][sS]"), recursive=True))
         
-        with open(file_path, 'r', encoding='utf-8-sig') as f:
-            reader = csv.reader(f)
-            for i, row in enumerate(reader):
-                if i > 20:  # Only check first 20 rows for summary
-                    break
-                    
-                if len(row) >= 2:
-                    if row[0].strip() == 'Gross Sales':
-                        try:
-                            gross_sales_str = row[1].strip().replace('"', '').replace('$', '').replace(',', '')
-                            gross_sales = float(gross_sales_str)
-                        except Exception as e:
-                            print(f"Error parsing gross sales: {row}, error: {e}")
-                    elif row[0].strip() == 'Net Sales':
-                        try:
-                            net_sales_str = row[1].strip().replace('"', '').replace('$', '').replace(',', '')
-                            net_sales = float(net_sales_str)
-                        except Exception as e:
-                            print(f"Error parsing net sales: {row}, error: {e}")
-                    elif 'AM -' in str(row) and 'PM' in str(row):
-                        date_range = ' '.join(row).strip().replace('"', '')
-                
-        print(f"Parsed {os.path.basename(file_path)}: Gross=${gross_sales:,.2f}, Net=${net_sales:,.2f}")
-                
-        return {
-            'gross_sales': gross_sales,
-            'net_sales': net_sales,
-            'date_range': date_range,
-            'file_path': file_path
-        }
+        # Find customer files (CSV)
+        self.customer_files = glob.glob(os.path.join(self.data_dir, "**/Customers-*.[cC][sS][vV]"), recursive=True)
+        
+        # Find sales files (Revenue Item Sales CSV)
+        self.sales_files = glob.glob(os.path.join(self.data_dir, "**/*Revenue Item Sales*.[cC][sS][vV]"), recursive=True)
+        
+        print(f"Found merchants: {len(self.merchant_files)}, customers: {len(self.customer_files)}, sales: {len(self.sales_files)}")
+        
+    def parse_currency(self, s):
+        """Parse currency strings to numeric values"""
+        return pd.to_numeric(pd.Series(s, dtype=str).str.replace(r"[^\d\.\-]", "", regex=True), errors="coerce")
     
-    def analyze_customers(self):
-        """Analyze customer data"""
-        if self.customers_df is None:
-            return {}
+    def load_customers(self):
+        """Load and merge customer data with deduplication and active flag"""
+        print("Loading and processing customer data...")
+        
+        if not self.customer_files:
+            print("No customer files found")
+            return pd.DataFrame()
             
-        print("Analyzing customer data...")
+        dfs = []
+        for p in self.customer_files:
+            print(f"  Loading: {os.path.basename(p)}")
+            df = pd.read_csv(p, low_memory=False, encoding='utf-8-sig')
+            df.columns = [c.strip().replace("\n", " ").replace("\r", " ") for c in df.columns]
+            dfs.append(df)
+            
+        if not dfs:
+            return pd.DataFrame()
+            
+        big = pd.concat(dfs, ignore_index=True, sort=False)
         
-        # Clean and process customer data
-        # Handle the datetime format: "07-Aug-2025 08:17 PM EDT"
-        self.customers_df['Customer Since'] = pd.to_datetime(
-            self.customers_df['Customer Since'].str.replace(' EDT', ''), 
-            format='%d-%b-%Y %I:%M %p', 
-            errors='coerce'
-        )
+        # Find relevant columns
+        idc = next((c for c in big.columns if c.lower() in ["customer id", "customerid", "id"]), None)
+        fn = next((c for c in big.columns if "first" in c.lower() and "name" in c.lower()), None)
+        ln = next((c for c in big.columns if "last" in c.lower() and "name" in c.lower()), None)
+        em = next((c for c in big.columns if "email" in c.lower()), None)
+        ph = next((c for c in big.columns if "phone" in c.lower()), None)
+        cs = next((c for c in big.columns if "customer since" in c.lower() or "join" in c.lower()), None)
+        ma = next((c for c in big.columns if "marketing" in c.lower() and "allow" in c.lower()), None)
         
-        # Total customers
-        total_customers = len(self.customers_df)
+        out = pd.DataFrame()
+        if idc: out["customer_id"] = big[idc]
+        if fn: out["first_name"] = big[fn]
+        if ln: out["last_name"] = big[ln]
+        if em: out["email"] = big[em]
+        if ph: out["phone"] = big[ph]
+        if ma: out["marketing_allowed"] = big[ma]
         
-        # Active customers (registered within last 30 days)
-        cutoff_date = self.current_date - timedelta(days=30)
-        active_customers = len(self.customers_df[self.customers_df['Customer Since'] >= cutoff_date])
-        inactive_customers = total_customers - active_customers
-        
-        # Customers with marketing allowed
-        marketing_allowed = len(self.customers_df[self.customers_df['Marketing Allowed'] == 'Yes'])
-        
-        # Daily registration trend (last 30 days)
-        recent_customers = self.customers_df[self.customers_df['Customer Since'] >= cutoff_date].copy()
-        if not recent_customers.empty:
-            recent_customers['Date'] = recent_customers['Customer Since'].dt.date
-            daily_registrations = recent_customers.groupby('Date').size()
+        # Parse customer since date
+        if cs:
+            # Handle the format: "07-Aug-2025 08:17 PM EDT"
+            date_series = big[cs].astype(str).str.replace(' EDT', '').str.replace(' EST', '')
+            out["customer_since"] = pd.to_datetime(date_series, format='%d-%b-%Y %I:%M %p', errors="coerce")
         else:
-            daily_registrations = pd.Series(dtype=int)
+            out["customer_since"] = pd.NaT
             
-        return {
-            'total_customers': total_customers,
-            'active_customers': active_customers,
-            'inactive_customers': inactive_customers,
-            'marketing_allowed': marketing_allowed,
-            'daily_registrations': daily_registrations
-        }
+        # Deduplication
+        if "customer_id" in out.columns:
+            out = out.drop_duplicates("customer_id")
+        elif {"email", "phone"}.issubset(out.columns):
+            out["__key"] = out[["email", "phone"]].astype(str).agg("|".join, axis=1)
+            out = out.drop_duplicates("__key")
+            out = out.drop(columns=["__key"])
+        else:
+            out = out.drop_duplicates()
+            
+        # Active flag (registered within last 30 days)
+        out["active_flag"] = (TODAY - out["customer_since"]).dt.days.between(0, 30, inclusive="left")
+        
+        print(f"  Processed {len(out)} unique customers")
+        return out
     
-    def analyze_merchants(self):
-        """Analyze merchant data from revenue files"""
-        print("Analyzing merchant data...")
-        
-        total_merchants = len(self.revenue_data)
-        active_merchants = 0
-        inactive_merchants = 0
-        
-        merchant_metrics = {}
-        total_volume = 0
-        
-        for merchant_name, data in self.revenue_data.items():
-            gross_sales = data['gross_sales']
-            net_sales = data['net_sales']
-            date_range = data['date_range']
-            
-            # Extract date range to determine if merchant is active
-            # Based on the data, it appears to be 60-day period data
-            days_in_period = 60  # Assuming 2 months as mentioned
-            
-            # Calculate daily average
-            daily_avg = net_sales / days_in_period if days_in_period > 0 else 0
-            weekly_avg = daily_avg * 7
-            monthly_avg = daily_avg * 30
-            
-            # Consider active if they have sales in the period
-            is_active = net_sales > 0
-            if is_active:
-                active_merchants += 1
-            else:
-                inactive_merchants += 1
+    def parse_items_report_csv(self, path):
+        """Parse items report CSV files"""
+        try:
+            with open(path, "r", encoding="utf-8-sig", errors="ignore") as f:
+                lines = f.readlines()
                 
-            merchant_metrics[merchant_name] = {
-                'gross_sales': gross_sales,
-                'net_sales': net_sales,
-                'daily_avg': daily_avg,
-                'weekly_avg': weekly_avg,
-                'monthly_avg': monthly_avg,
-                'is_active': is_active,
-                'date_range': date_range
-            }
+            # Find header line with Net Sales
+            hdr = next((i for i, ln in enumerate(lines[:200]) 
+                       if "Name" in ln and "Net Sales" in ln and "," in ln), None)
             
-            total_volume += net_sales
+            if hdr is None:
+                # Try to find summary data instead
+                gross_sales = 0
+                net_sales = 0
+                
+                import csv
+                with open(path, 'r', encoding='utf-8-sig') as f:
+                    reader = csv.reader(f)
+                    for i, row in enumerate(reader):
+                        if i > 20:  # Only check first 20 rows for summary
+                            break
+                            
+                        if len(row) >= 2:
+                            if row[0].strip() == 'Gross Sales':
+                                try:
+                                    gross_sales_str = row[1].strip().replace('"', '').replace('$', '').replace(',', '')
+                                    gross_sales = float(gross_sales_str)
+                                except:
+                                    pass
+                            elif row[0].strip() == 'Net Sales':
+                                try:
+                                    net_sales_str = row[1].strip().replace('"', '').replace('$', '').replace(',', '')
+                                    net_sales = float(net_sales_str)
+                                except:
+                                    pass
+                
+                return pd.DataFrame({"Net Sales_num": [net_sales]}) if net_sales > 0 else None
+                
+            # Parse detailed data
+            df = pd.read_csv(io.StringIO("".join(lines[hdr:])), engine="python")
+            if "Net Sales" in df.columns:
+                df["Net Sales_num"] = self.parse_currency(df["Net Sales"])
+            return df
             
+        except Exception as e:
+            print(f"Error parsing {path}: {e}")
+            return None
+    
+    def load_sales(self):
+        """Load and aggregate sales data"""
+        print("Loading sales data...")
+        
+        out = []
+        for p in self.sales_files:
+            print(f"  Processing: {os.path.basename(p)}")
+            df = self.parse_items_report_csv(p)
+            if df is not None:
+                merchant_key = Path(p).name.split("-Revenue Item Sales")[0].strip().upper()
+                net_sales = df["Net Sales_num"].sum() if "Net Sales_num" in df.columns else 0
+                out.append(pd.DataFrame({
+                    "merchant_name_key": [merchant_key],
+                    "net_sales_60d": [net_sales]
+                }))
+                print(f"    Extracted ${net_sales:,.2f} for {merchant_key}")
+                
+        return pd.concat(out, ignore_index=True) if out else pd.DataFrame(columns=["merchant_name_key", "net_sales_60d"])
+    
+    def load_merchants(self):
+        """Load merchant data from Excel files"""
+        print("Loading merchant data...")
+        
+        if not self.merchant_files:
+            print("No merchant files found, creating from sales data")
+            return pd.DataFrame()
+            
+        dfs = []
+        for p in self.merchant_files:
+            try:
+                print(f"  Loading: {os.path.basename(p)}")
+                df = pd.read_excel(p)
+                df.columns = [c.strip().replace("\n", " ").replace("\r", " ") for c in df.columns]
+                dfs.append(df)
+            except Exception as e:
+                print(f"  Error loading {p}: {e}")
+                
+        if not dfs:
+            return pd.DataFrame()
+            
+        # For now, return empty since we don't have actual merchant list files
+        # We'll create merchants from sales data
+        return pd.DataFrame()
+    
+    def coalesce_sales(self, merchants_df, sales_agg):
+        """Coalesce merchant data with sales data"""
+        print("Coalescing merchant and sales data...")
+        
+        if merchants_df.empty:
+            # Create merchant records from sales data
+            merchants = []
+            for _, row in sales_agg.iterrows():
+                merchant_name = row["merchant_name_key"]
+                merchants.append({
+                    "merchant_id": merchant_name,
+                    "legal_name": merchant_name.title(),
+                    "dba_name": merchant_name.title(),
+                    "merchant_name_key": merchant_name,
+                    "net_sales_60d": row["net_sales_60d"],
+                    "net_sales_60d_final": row["net_sales_60d"]
+                })
+            m = pd.DataFrame(merchants)
+        else:
+            m = merchants_df.copy().rename(columns=str.lower)
+            s = sales_agg.copy()
+            
+            # Create merchant key for matching
+            name_col = next((c for c in m.columns if "name" in c.lower()), None)
+            if name_col:
+                m["merchant_name_key"] = m[name_col].astype(str).str.strip().str.upper()
+            
+            # Rename columns
+            m = m.rename(columns={
+                "customer id": "merchant_id", 
+                "legal business name": "legal_name",
+                "dba name": "dba_name", 
+                "mtd volume": "mtd_volume", 
+                "last month volume": "last_month_volume"
+            })
+            
+            for c in ["mtd_volume", "last_month_volume"]:
+                if c in m.columns: 
+                    m[c] = self.parse_currency(m[c])
+            
+            m = m.merge(s, on="merchant_name_key", how="left")
+            fallback = m.get("mtd_volume", 0).fillna(0) + m.get("last_month_volume", 0).fillna(0)
+            m["net_sales_60d_final"] = np.where(m["net_sales_60d"].notna(), m["net_sales_60d"], fallback)
+        
+        # Calculate derived metrics
+        m["active_flag"] = m["net_sales_60d_final"] > 0
+        m["daily_volume_est"] = m["net_sales_60d_final"] / 60.0
+        m["weekly_volume_est"] = m["net_sales_60d_final"] * 7.0 / 60.0
+        m["monthly_volume_est"] = m["net_sales_60d_final"] / 2.0
+        
+        print(f"  Processed {len(m)} merchants")
+        return m
+    
+    def compute_metrics(self, merchants_enriched, customers):
+        """Compute comprehensive business metrics"""
+        print("Computing business metrics...")
+        
+        total_60d = float(merchants_enriched["net_sales_60d_final"].sum())
+        daily, weekly, monthly = total_60d/60.0, total_60d*7/60.0, total_60d/2.0
+        
+        # Customer metrics
+        customers_marketing = customers["marketing_allowed"].eq("Yes").sum() if "marketing_allowed" in customers.columns else 0
+        
+        # Top 3 merchants
+        top3 = (merchants_enriched.sort_values("net_sales_60d_final", ascending=False)
+                [["legal_name", "dba_name", "net_sales_60d_final"]].head(3)
+                .rename(columns={"net_sales_60d_final": "net_sales_60d"}))
+        
         return {
-            'total_merchants': total_merchants,
-            'active_merchants': active_merchants,
-            'inactive_merchants': inactive_merchants,
-            'merchant_metrics': merchant_metrics,
-            'total_volume': total_volume,
-            'daily_platform_volume': total_volume / 60,  # 60 days of data
-            'weekly_platform_volume': (total_volume / 60) * 7,
-            'monthly_platform_volume': (total_volume / 60) * 30
+            "merchants_total": int(len(merchants_enriched)),
+            "merchants_active": int(merchants_enriched["active_flag"].sum()),
+            "merchants_inactive": int(len(merchants_enriched) - merchants_enriched["active_flag"].sum()),
+            "customers_total": int(len(customers)),
+            "customers_active": int(customers["active_flag"].sum()),
+            "customers_inactive": int(len(customers) - customers["active_flag"].sum()),
+            "customers_marketing": int(customers_marketing),
+            "total_60d": round(total_60d, 2),
+            "daily": round(daily, 2),
+            "weekly": round(weekly, 2),
+            "monthly": round(monthly, 2),
+            "top3": top3
         }
     
-    def predict_sales(self, merchant_metrics):
+    def predict_sales(self, merchants_enriched):
         """Predict sales for next 2 months and same period next year"""
         print("Generating sales predictions...")
         
         predictions = {}
         
-        for merchant_name, metrics in merchant_metrics.items():
-            daily_avg = metrics['daily_avg']
+        for _, merchant in merchants_enriched.iterrows():
+            merchant_name = merchant.get("legal_name", merchant.get("dba_name", "Unknown"))
+            daily_avg = merchant["daily_volume_est"]
             
-            # Simple linear trend prediction (assuming current performance continues)
             # For next 2 months (60 days)
             next_2_months = daily_avg * 60
             
             # For same period next year (assuming 10% growth)
-            # This is a conservative estimate based on business growth patterns
             growth_factor = 1.10  # 10% annual growth assumption
             same_period_next_year = next_2_months * growth_factor
             
             predictions[merchant_name] = {
                 'next_2_months': next_2_months,
                 'same_period_next_year': same_period_next_year,
-                'current_monthly_avg': metrics['monthly_avg']
+                'current_monthly_avg': merchant["monthly_volume_est"]
             }
             
         return predictions
     
-    def identify_top_customers(self):
-        """Identify top 3 most valuable/potential customers based on available data"""
+    def identify_top_customers(self, customers):
+        """Identify top 3 most valuable/potential customers"""
         print("Identifying top customers...")
         
-        if self.customers_df is None:
+        if customers.empty:
             return []
             
-        # Since we don't have transaction-level customer data, we'll identify based on:
-        # 1. Recent registration (potential)
-        # 2. Marketing acceptance (engagement potential)
-        # 3. Complete profile information (value indicator)
-        
         # Score customers
-        customer_scores = self.customers_df.copy()
+        customer_scores = customers.copy()
         customer_scores['score'] = 0
         
         # Recent customers (last 7 days) get higher potential score
-        recent_cutoff = self.current_date - timedelta(days=7)
-        customer_scores.loc[customer_scores['Customer Since'] >= recent_cutoff, 'score'] += 3
+        recent_cutoff = TODAY - timedelta(days=7)
+        customer_scores.loc[customer_scores['customer_since'] >= recent_cutoff, 'score'] += 3
         
         # Marketing allowed indicates engagement potential
-        customer_scores.loc[customer_scores['Marketing Allowed'] == 'Yes', 'score'] += 2
+        if "marketing_allowed" in customer_scores.columns:
+            customer_scores.loc[customer_scores['marketing_allowed'] == 'Yes', 'score'] += 2
         
         # Complete profile (has name) indicates higher value
-        customer_scores.loc[customer_scores['First Name'].notna() & 
-                          customer_scores['Last Name'].notna(), 'score'] += 2
+        if "first_name" in customer_scores.columns and "last_name" in customer_scores.columns:
+            customer_scores.loc[customer_scores['first_name'].notna() & 
+                              customer_scores['last_name'].notna(), 'score'] += 2
         
         # Has phone number
-        customer_scores.loc[customer_scores['Phone Number'].notna(), 'score'] += 1
+        if "phone" in customer_scores.columns:
+            customer_scores.loc[customer_scores['phone'].notna(), 'score'] += 1
         
         # Has email
-        customer_scores.loc[customer_scores['Email Address'].notna(), 'score'] += 1
+        if "email" in customer_scores.columns:
+            customer_scores.loc[customer_scores['email'].notna(), 'score'] += 1
         
         # Get top 3
-        top_customers = customer_scores.nlargest(3, 'score')[
-            ['Customer ID', 'First Name', 'Last Name', 'Customer Since', 'Marketing Allowed', 'score']
-        ]
+        cols_to_select = ['customer_id', 'score']
+        if "first_name" in customer_scores.columns:
+            cols_to_select.append('first_name')
+        if "last_name" in customer_scores.columns:
+            cols_to_select.append('last_name')
+        if "customer_since" in customer_scores.columns:
+            cols_to_select.append('customer_since')
+        if "marketing_allowed" in customer_scores.columns:
+            cols_to_select.append('marketing_allowed')
+            
+        top_customers = customer_scores.nlargest(3, 'score')[cols_to_select]
         
         return top_customers.to_dict('records')
     
@@ -269,23 +371,27 @@ class DashboardAnalyzer:
         """Generate comprehensive analysis report"""
         print("Generating comprehensive report...")
         
-        # Load all data
-        self.load_data()
+        # Load all data using improved methods
+        customers = self.load_customers()
+        sales_agg = self.load_sales()
+        merchants_raw = self.load_merchants()
+        merchants_enriched = self.coalesce_sales(merchants_raw, sales_agg)
         
-        # Analyze each component
-        customer_analysis = self.analyze_customers()
-        merchant_analysis = self.analyze_merchants()
-        sales_predictions = self.predict_sales(merchant_analysis['merchant_metrics'])
-        top_customers = self.identify_top_customers()
+        # Compute metrics
+        metrics = self.compute_metrics(merchants_enriched, customers)
+        sales_predictions = self.predict_sales(merchants_enriched)
+        top_customers = self.identify_top_customers(customers)
         
         # Compile report
         report = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'data_period': '60 days (Feb 7, 2025 - Aug 8, 2025)',
-            'customers': customer_analysis,
-            'merchants': merchant_analysis,
+            'metrics': metrics,
+            'merchants': merchants_enriched.to_dict('records'),
             'predictions': sales_predictions,
-            'top_customers': top_customers
+            'top_customers': top_customers,
+            'raw_customer_count': len(customers),
+            'customer_sample': customers.head(10).to_dict('records') if not customers.empty else []
         }
         
         return report
@@ -299,35 +405,36 @@ class DashboardAnalyzer:
         print(f"\nData Period: {report['data_period']}")
         print(f"Analysis Generated: {report['timestamp']}")
         
+        metrics = report['metrics']
+        
         # Customer Summary
         print(f"\n📊 CUSTOMER METRICS:")
-        print(f"  • Total Customers: {report['customers']['total_customers']:,}")
-        print(f"  • Active Customers (last 30 days): {report['customers']['active_customers']:,}")
-        print(f"  • Inactive Customers: {report['customers']['inactive_customers']:,}")
-        print(f"  • Marketing Opt-ins: {report['customers']['marketing_allowed']:,}")
+        print(f"  • Total Customers: {metrics['customers_total']:,}")
+        print(f"  • Active Customers (last 30 days): {metrics['customers_active']:,}")
+        print(f"  • Inactive Customers: {metrics['customers_inactive']:,}")
+        print(f"  • Marketing Opt-ins: {metrics['customers_marketing']:,}")
         
         # Merchant Summary  
         print(f"\n🏪 MERCHANT METRICS:")
-        print(f"  • Total Merchants: {report['merchants']['total_merchants']}")
-        print(f"  • Active Merchants: {report['merchants']['active_merchants']}")
-        print(f"  • Inactive Merchants: {report['merchants']['inactive_merchants']}")
+        print(f"  • Total Merchants: {metrics['merchants_total']}")
+        print(f"  • Active Merchants: {metrics['merchants_active']}")
+        print(f"  • Inactive Merchants: {metrics['merchants_inactive']}")
         
         # Volume Summary
         print(f"\n💰 PROCESSING VOLUME:")
-        print(f"  • Total Volume (60 days): ${report['merchants']['total_volume']:,.2f}")
-        print(f"  • Daily Average: ${report['merchants']['daily_platform_volume']:,.2f}")
-        print(f"  • Weekly Average: ${report['merchants']['weekly_platform_volume']:,.2f}")
-        print(f"  • Monthly Average: ${report['merchants']['monthly_platform_volume']:,.2f}")
+        print(f"  • Total Volume (60 days): ${metrics['total_60d']:,.2f}")
+        print(f"  • Daily Average: ${metrics['daily']:,.2f}")
+        print(f"  • Weekly Average: ${metrics['weekly']:,.2f}")
+        print(f"  • Monthly Average: ${metrics['monthly']:,.2f}")
         
         # Top Merchants by Volume
         print(f"\n🏆 TOP MERCHANTS BY VOLUME:")
-        sorted_merchants = sorted(
-            report['merchants']['merchant_metrics'].items(),
-            key=lambda x: x[1]['net_sales'],
-            reverse=True
-        )
-        for i, (name, metrics) in enumerate(sorted_merchants[:3], 1):
-            print(f"  {i}. {name}: ${metrics['net_sales']:,.2f} (${metrics['monthly_avg']:,.2f}/month)")
+        if not metrics['top3'].empty:
+            for i, (_, row) in enumerate(metrics['top3'].iterrows(), 1):
+                name = row.get('legal_name', row.get('dba_name', 'Unknown'))
+                volume = row['net_sales_60d']
+                monthly = volume / 2  # 60 days = 2 months
+                print(f"  {i}. {name}: ${volume:,.2f} (${monthly:,.2f}/month)")
         
         # Sales Predictions
         print(f"\n🔮 SALES PREDICTIONS (Next 2 Months):")
@@ -340,10 +447,18 @@ class DashboardAnalyzer:
         # Top Customers
         print(f"\n⭐ TOP 3 POTENTIAL CUSTOMERS:")
         for i, customer in enumerate(report['top_customers'], 1):
-            name = f"{customer.get('First Name', '')} {customer.get('Last Name', '')}".strip()
-            if not name:
-                name = customer['Customer ID']
-            print(f"  {i}. {name} (Score: {customer['score']}, Joined: {customer['Customer Since']})")
+            name_parts = []
+            if customer.get('first_name'):
+                name_parts.append(customer['first_name'])
+            if customer.get('last_name'):
+                name_parts.append(customer['last_name'])
+            name = ' '.join(name_parts) or customer.get('customer_id', 'Unknown')
+            
+            join_date = customer.get('customer_since', 'Unknown')
+            if isinstance(join_date, str) and 'T' in join_date:
+                join_date = join_date.split('T')[0]
+            
+            print(f"  {i}. {name} (Score: {customer['score']}, Joined: {join_date})")
         
         print("\n" + "="*60)
 
@@ -364,13 +479,10 @@ def main():
     with open(os.path.join(data_dir, 'analysis_report.json'), 'w') as f:
         # Convert datetime objects to strings for JSON serialization
         json_report = report.copy()
-        if 'daily_registrations' in json_report['customers']:
-            daily_reg = json_report['customers']['daily_registrations']
-            if hasattr(daily_reg, 'to_dict'):
-                # Convert pandas series with date index to string keys
-                json_report['customers']['daily_registrations'] = {
-                    str(k): v for k, v in daily_reg.to_dict().items()
-                }
+        
+        # Handle pandas DataFrame serialization
+        if 'top3' in json_report['metrics'] and hasattr(json_report['metrics']['top3'], 'to_dict'):
+            json_report['metrics']['top3'] = json_report['metrics']['top3'].to_dict('records')
         
         json.dump(json_report, f, indent=2, default=str)
     

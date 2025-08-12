@@ -1,123 +1,218 @@
 {
-  "timestamp": "2025-08-12 09:17:16",
+  "timestamp": "2025-08-12 09:35:31",
   "data_period": "60 days (Feb 7, 2025 - Aug 8, 2025)",
-  "customers": {
-    "total_customers": 21997,
-    "active_customers": 1152,
-    "inactive_customers": 20845,
-    "marketing_allowed": 2602,
-    "daily_registrations": {
-      "2025-07-09": 34,
-      "2025-07-10": 46,
-      "2025-07-11": 47,
-      "2025-07-12": 49,
-      "2025-07-13": 46,
-      "2025-07-14": 41,
-      "2025-07-15": 21,
-      "2025-07-16": 42,
-      "2025-07-17": 37,
-      "2025-07-18": 53,
-      "2025-07-19": 41,
-      "2025-07-20": 43,
-      "2025-07-21": 31,
-      "2025-07-22": 34,
-      "2025-07-23": 33,
-      "2025-07-24": 43,
-      "2025-07-25": 35,
-      "2025-07-26": 30,
-      "2025-07-27": 43,
-      "2025-07-28": 30,
-      "2025-07-29": 43,
-      "2025-07-30": 34,
-      "2025-07-31": 29,
-      "2025-08-01": 38,
-      "2025-08-02": 52,
-      "2025-08-03": 28,
-      "2025-08-04": 44,
-      "2025-08-05": 30,
-      "2025-08-06": 29,
-      "2025-08-07": 46
-    }
-  },
-  "merchants": {
-    "total_merchants": 3,
-    "active_merchants": 3,
-    "inactive_merchants": 0,
-    "merchant_metrics": {
-      "POKE HANA": {
-        "gross_sales": 289728.26,
-        "net_sales": 287800.86,
-        "daily_avg": 4796.681,
-        "weekly_avg": 33576.767,
-        "monthly_avg": 143900.43,
-        "is_active": true,
-        "date_range": ""
+  "metrics": {
+    "merchants_total": 3,
+    "merchants_active": 3,
+    "merchants_inactive": 0,
+    "customers_total": 134778,
+    "customers_active": 2294,
+    "customers_inactive": 132484,
+    "customers_marketing": 11870,
+    "total_60d": 1915679.49,
+    "daily": 31927.99,
+    "weekly": 223495.94,
+    "monthly": 957839.75,
+    "top3": [
+      {
+        "legal_name": "Poke Hana",
+        "dba_name": "Poke Hana",
+        "net_sales_60d": 863402.52
       },
-      "MARATHON LIQUORS": {
-        "gross_sales": 428973.0,
-        "net_sales": 426703.17,
-        "daily_avg": 7111.7195,
-        "weekly_avg": 49782.0365,
-        "monthly_avg": 213351.585,
-        "is_active": true,
-        "date_range": ""
+      {
+        "legal_name": "Marathon Liquors",
+        "dba_name": "Marathon Liquors",
+        "net_sales_60d": 853406.3300000001
       },
-      "Anthony's Pizza & Pasta": {
-        "gross_sales": 68179.91,
-        "net_sales": 66290.19,
-        "daily_avg": 1104.8365000000001,
-        "weekly_avg": 7733.855500000001,
-        "monthly_avg": 33145.095,
-        "is_active": true,
-        "date_range": ""
+      {
+        "legal_name": "Anthony'S Pizza & Pasta",
+        "dba_name": "Anthony'S Pizza & Pasta",
+        "net_sales_60d": 198870.64
       }
-    },
-    "total_volume": 780794.22,
-    "daily_platform_volume": 13013.237,
-    "weekly_platform_volume": 91092.659,
-    "monthly_platform_volume": 390397.11
+    ]
   },
+  "merchants": [
+    {
+      "merchant_id": "POKE HANA",
+      "legal_name": "Poke Hana",
+      "dba_name": "Poke Hana",
+      "merchant_name_key": "POKE HANA",
+      "net_sales_60d": 863402.52,
+      "net_sales_60d_final": 863402.52,
+      "active_flag": true,
+      "daily_volume_est": 14390.042,
+      "weekly_volume_est": 100730.29400000001,
+      "monthly_volume_est": 431701.26
+    },
+    {
+      "merchant_id": "MARATHON LIQUORS",
+      "legal_name": "Marathon Liquors",
+      "dba_name": "Marathon Liquors",
+      "merchant_name_key": "MARATHON LIQUORS",
+      "net_sales_60d": 853406.3300000001,
+      "net_sales_60d_final": 853406.3300000001,
+      "active_flag": true,
+      "daily_volume_est": 14223.438833333335,
+      "weekly_volume_est": 99564.07183333334,
+      "monthly_volume_est": 426703.16500000004
+    },
+    {
+      "merchant_id": "ANTHONY'S PIZZA & PASTA",
+      "legal_name": "Anthony'S Pizza & Pasta",
+      "dba_name": "Anthony'S Pizza & Pasta",
+      "merchant_name_key": "ANTHONY'S PIZZA & PASTA",
+      "net_sales_60d": 198870.64,
+      "net_sales_60d_final": 198870.64,
+      "active_flag": true,
+      "daily_volume_est": 3314.510666666667,
+      "weekly_volume_est": 23201.574666666667,
+      "monthly_volume_est": 99435.32
+    }
+  ],
   "predictions": {
-    "POKE HANA": {
-      "next_2_months": 287800.86,
-      "same_period_next_year": 316580.946,
-      "current_monthly_avg": 143900.43
+    "Poke Hana": {
+      "next_2_months": 863402.52,
+      "same_period_next_year": 949742.7720000001,
+      "current_monthly_avg": 431701.26
     },
-    "MARATHON LIQUORS": {
-      "next_2_months": 426703.17,
-      "same_period_next_year": 469373.487,
-      "current_monthly_avg": 213351.585
+    "Marathon Liquors": {
+      "next_2_months": 853406.3300000001,
+      "same_period_next_year": 938746.9630000001,
+      "current_monthly_avg": 426703.16500000004
     },
-    "Anthony's Pizza & Pasta": {
-      "next_2_months": 66290.19,
-      "same_period_next_year": 72919.209,
-      "current_monthly_avg": 33145.095
+    "Anthony'S Pizza & Pasta": {
+      "next_2_months": 198870.64,
+      "same_period_next_year": 218757.70400000003,
+      "current_monthly_avg": 99435.32
     }
   },
   "top_customers": [
     {
-      "Customer ID": "H1AS30SJXA5XE",
-      "First Name": "Abigail",
-      "Last Name": "Eischen",
-      "Customer Since": "2025-08-07 12:21:00",
-      "Marketing Allowed": "Yes",
-      "score": 9
+      "customer_id": "5ABYX89BN2V0W",
+      "score": 9,
+      "first_name": "Kelsey",
+      "last_name": "Bell",
+      "customer_since": "2025-08-07 14:50:00",
+      "marketing_allowed": "Yes"
     },
     {
-      "Customer ID": "212FT96Y0KNJE",
-      "First Name": "Yasmin",
-      "Last Name": "Lansiquot",
-      "Customer Since": "2025-08-07 12:12:00",
-      "Marketing Allowed": "Yes",
-      "score": 9
+      "customer_id": "7MHP51WKT9VBT",
+      "score": 9,
+      "first_name": "Paul",
+      "last_name": "West",
+      "customer_since": "2025-08-07 12:13:00",
+      "marketing_allowed": "Yes"
     },
     {
-      "Customer ID": "VMASB649S2262",
-      "First Name": "Diane",
-      "Last Name": "Goskie",
-      "Customer Since": "2025-08-06 16:43:00",
-      "Marketing Allowed": "Yes",
-      "score": 9
+      "customer_id": "E1QBQ90PV46FE",
+      "score": 9,
+      "first_name": "Jorge",
+      "last_name": "R",
+      "customer_since": "2025-08-05 16:55:00",
+      "marketing_allowed": "Yes"
+    }
+  ],
+  "raw_customer_count": 134778,
+  "customer_sample": [
+    {
+      "customer_id": "XTET6EHAXV3Q0",
+      "first_name": NaN,
+      "last_name": NaN,
+      "email": NaN,
+      "phone": NaN,
+      "marketing_allowed": "No",
+      "customer_since": "2025-02-17 18:15:00",
+      "active_flag": false
+    },
+    {
+      "customer_id": "9PSH71E3ZMY14",
+      "first_name": NaN,
+      "last_name": NaN,
+      "email": NaN,
+      "phone": NaN,
+      "marketing_allowed": "No",
+      "customer_since": "2025-02-17 17:43:00",
+      "active_flag": false
+    },
+    {
+      "customer_id": "NYF9A9VE6E9GM",
+      "first_name": "SARA",
+      "last_name": "SIMONSON",
+      "email": NaN,
+      "phone": "+16512146770",
+      "marketing_allowed": "No",
+      "customer_since": "2025-02-17 17:42:00",
+      "active_flag": false
+    },
+    {
+      "customer_id": "P9NM82TFZ3F0E",
+      "first_name": NaN,
+      "last_name": NaN,
+      "email": NaN,
+      "phone": NaN,
+      "marketing_allowed": "No",
+      "customer_since": "2025-02-17 13:06:00",
+      "active_flag": false
+    },
+    {
+      "customer_id": "KCKASXDNZ5GFW",
+      "first_name": NaN,
+      "last_name": NaN,
+      "email": NaN,
+      "phone": NaN,
+      "marketing_allowed": "No",
+      "customer_since": "2025-02-17 13:05:00",
+      "active_flag": false
+    },
+    {
+      "customer_id": "93081RP1TF3E4",
+      "first_name": NaN,
+      "last_name": NaN,
+      "email": NaN,
+      "phone": NaN,
+      "marketing_allowed": "No",
+      "customer_since": "2025-02-17 13:03:00",
+      "active_flag": false
+    },
+    {
+      "customer_id": "VQE2G3DK9SQD4",
+      "first_name": NaN,
+      "last_name": NaN,
+      "email": NaN,
+      "phone": NaN,
+      "marketing_allowed": "No",
+      "customer_since": "2025-02-17 12:57:00",
+      "active_flag": false
+    },
+    {
+      "customer_id": "P8VYKYYQAEWHR",
+      "first_name": NaN,
+      "last_name": NaN,
+      "email": NaN,
+      "phone": NaN,
+      "marketing_allowed": "No",
+      "customer_since": "2025-02-17 12:52:00",
+      "active_flag": false
+    },
+    {
+      "customer_id": "G0BP2VMK4Z3SE",
+      "first_name": NaN,
+      "last_name": NaN,
+      "email": NaN,
+      "phone": NaN,
+      "marketing_allowed": "No",
+      "customer_since": "2025-02-17 12:43:00",
+      "active_flag": false
+    },
+    {
+      "customer_id": "GWE0GPPR8JXP4",
+      "first_name": NaN,
+      "last_name": NaN,
+      "email": NaN,
+      "phone": NaN,
+      "marketing_allowed": "No",
+      "customer_since": "2025-02-17 12:42:00",
+      "active_flag": false
     }
   ]
 }

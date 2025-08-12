@@ -28,60 +28,67 @@ def main():
     
     print_section("📈 KEY PERFORMANCE INDICATORS")
     
-    customers = report['customers']
-    merchants = report['merchants']
+    metrics = report['metrics']
     
     print(f"Data Period: {report['data_period']}")
-    print(f"Total Platform Volume: ${merchants['total_volume']:,.2f}")
-    print(f"Total Customers: {customers['total_customers']:,}")
-    print(f"Total Active Merchants: {merchants['active_merchants']}")
-    print(f"Customer Acquisition Rate: {(customers['active_customers']/30):.1f} customers/day")
-    print(f"Platform Daily Revenue: ${merchants['daily_platform_volume']:,.2f}")
+    print(f"Total Platform Volume: ${metrics['total_60d']:,.2f}")
+    print(f"Total Customers: {metrics['customers_total']:,}")
+    print(f"Total Active Merchants: {metrics['merchants_active']}")
+    print(f"Customer Acquisition Rate: {(metrics['customers_active']/30):.1f} customers/day")
+    print(f"Platform Daily Revenue: ${metrics['daily']:,.2f}")
     
     print_section("👥 CUSTOMER ANALYSIS")
     
-    active_rate = (customers['active_customers'] / customers['total_customers']) * 100
-    marketing_rate = (customers['marketing_allowed'] / customers['total_customers']) * 100
+    active_rate = (metrics['customers_active'] / metrics['customers_total']) * 100
+    marketing_rate = (metrics['customers_marketing'] / metrics['customers_total']) * 100
     
-    print(f"• Total Customers Onboarded: {customers['total_customers']:,}")
-    print(f"• Active Customers (last 30 days): {customers['active_customers']:,} ({active_rate:.1f}%)")
-    print(f"• Inactive Customers: {customers['inactive_customers']:,} ({100-active_rate:.1f}%)")
-    print(f"• Marketing Opt-in Rate: {customers['marketing_allowed']:,} ({marketing_rate:.1f}%)")
+    print(f"• Total Customers Onboarded: {metrics['customers_total']:,}")
+    print(f"• Active Customers (last 30 days): {metrics['customers_active']:,} ({active_rate:.1f}%)")
+    print(f"• Inactive Customers: {metrics['customers_inactive']:,} ({100-active_rate:.1f}%)")
+    print(f"• Marketing Opt-in Rate: {metrics['customers_marketing']:,} ({marketing_rate:.1f}%)")
     
     print("\n💡 Customer Insights:")
     print(f"  - High customer acquisition volume but low retention ({active_rate:.1f}% active)")
     print(f"  - Opportunity to improve engagement and reactivate inactive customers")
-    print(f"  - {marketing_rate:.1f}% marketing opt-in rate provides reach to {customers['marketing_allowed']:,} customers")
+    print(f"  - {marketing_rate:.1f}% marketing opt-in rate provides reach to {metrics['customers_marketing']:,} customers")
     
     print_section("🏪 MERCHANT ANALYSIS")
     
-    merchant_data = merchants['merchant_metrics']
-    print(f"• Total Merchants: {merchants['total_merchants']}")
-    print(f"• Active Merchants: {merchants['active_merchants']} (100% - excellent!)")
-    print(f"• Inactive Merchants: {merchants['inactive_merchants']}")
+    merchants = report['merchants']
+    print(f"• Total Merchants: {metrics['merchants_total']}")
+    print(f"• Active Merchants: {metrics['merchants_active']} (100% - excellent!)")
+    print(f"• Inactive Merchants: {metrics['merchants_inactive']}")
     
     print(f"\n📊 Merchant Performance Breakdown:")
-    sorted_merchants = sorted(merchant_data.items(), key=lambda x: x[1]['net_sales'], reverse=True)
-    for i, (name, data) in enumerate(sorted_merchants, 1):
-        percentage = (data['net_sales'] / merchants['total_volume']) * 100
+    # Sort merchants by volume
+    sorted_merchants = sorted(merchants, key=lambda x: x.get('net_sales_60d_final', 0), reverse=True)
+    for i, merchant in enumerate(sorted_merchants, 1):
+        name = merchant.get('legal_name', merchant.get('dba_name', 'Unknown'))
+        volume = merchant.get('net_sales_60d_final', 0)
+        monthly = merchant.get('monthly_volume_est', 0)
+        daily = merchant.get('daily_volume_est', 0)
+        percentage = (volume / metrics['total_60d']) * 100
         print(f"  {i}. {name}")
-        print(f"     Revenue: ${data['net_sales']:,.2f} ({percentage:.1f}% of platform)")
-        print(f"     Monthly Avg: ${data['monthly_avg']:,.2f}")
-        print(f"     Daily Avg: ${data['daily_avg']:,.2f}")
+        print(f"     Revenue: ${volume:,.2f} ({percentage:.1f}% of platform)")
+        print(f"     Monthly Avg: ${monthly:,.2f}")
+        print(f"     Daily Avg: ${daily:,.2f}")
     
     print_section("💰 PROCESSING VOLUME ANALYSIS")
     
     print(f"Platform Volume Metrics (60-day period):")
-    print(f"• Total Volume: ${merchants['total_volume']:,.2f}")
-    print(f"• Daily Average: ${merchants['daily_platform_volume']:,.2f}")
-    print(f"• Weekly Average: ${merchants['weekly_platform_volume']:,.2f}")
-    print(f"• Monthly Average: ${merchants['monthly_platform_volume']:,.2f}")
+    print(f"• Total Volume: ${metrics['total_60d']:,.2f}")
+    print(f"• Daily Average: ${metrics['daily']:,.2f}")
+    print(f"• Weekly Average: ${metrics['weekly']:,.2f}")
+    print(f"• Monthly Average: ${metrics['monthly']:,.2f}")
     
     # Calculate growth metrics
-    top_merchant = max(merchant_data.items(), key=lambda x: x[1]['net_sales'])
-    print(f"\n🏆 Top Performer: {top_merchant[0]}")
-    print(f"   Generates ${top_merchant[1]['daily_avg']:,.2f}/day")
-    print(f"   Accounts for {(top_merchant[1]['net_sales']/merchants['total_volume']*100):.1f}% of platform volume")
+    top_merchant = max(merchants, key=lambda x: x.get('net_sales_60d_final', 0))
+    top_name = top_merchant.get('legal_name', top_merchant.get('dba_name', 'Unknown'))
+    top_daily = top_merchant.get('daily_volume_est', 0)
+    top_volume = top_merchant.get('net_sales_60d_final', 0)
+    print(f"\n🏆 Top Performer: {top_name}")
+    print(f"   Generates ${top_daily:,.2f}/day")
+    print(f"   Accounts for {(top_volume/metrics['total_60d']*100):.1f}% of platform volume")
     
     print_section("🔮 SALES PREDICTIONS")
     
@@ -108,16 +115,22 @@ def main():
     print("Most Valuable/Potential Customers (Based on engagement scoring):")
     
     for i, customer in enumerate(top_customers, 1):
-        name = f"{customer.get('First Name', '')} {customer.get('Last Name', '')}".strip()
-        if not name:
-            name = customer['Customer ID']
+        name_parts = []
+        if customer.get('first_name'):
+            name_parts.append(customer['first_name'])
+        if customer.get('last_name'):
+            name_parts.append(customer['last_name'])
+        name = ' '.join(name_parts) or customer.get('customer_id', 'Unknown')
         
-        join_date = customer['Customer Since'][:10] if customer['Customer Since'] else 'Unknown'
-        marketing = customer['Marketing Allowed']
-        score = customer['score']
+        join_date = customer.get('customer_since', 'Unknown')
+        if isinstance(join_date, str) and 'T' in join_date:
+            join_date = join_date.split('T')[0]
+        
+        marketing = customer.get('marketing_allowed', 'N/A')
+        score = customer.get('score', 0)
         
         print(f"  {i}. {name}")
-        print(f"     Customer ID: {customer['Customer ID']}")
+        print(f"     Customer ID: {customer.get('customer_id', 'Unknown')}")
         print(f"     Joined: {join_date}")
         print(f"     Marketing Allowed: {marketing}")
         print(f"     Potential Score: {score}/9")
@@ -127,21 +140,21 @@ def main():
     print("Based on the data analysis, here are key recommendations:")
     print(f"\n1. Customer Retention Focus:")
     print(f"   - Only {active_rate:.1f}% of customers are active")
-    print(f"   - Implement re-engagement campaigns for {customers['inactive_customers']:,} inactive customers")
+    print(f"   - Implement re-engagement campaigns for {metrics['customers_inactive']:,} inactive customers")
     print(f"   - Focus on onboarding improvements to increase retention")
     
     print(f"\n2. Merchant Growth:")
     print(f"   - All merchants are active - excellent performance!")
-    print(f"   - Top merchant generates ${top_merchant[1]['monthly_avg']:,.2f}/month")
+    print(f"   - Top merchant generates ${top_merchant.get('monthly_volume_est', 0):,.2f}/month")
     print(f"   - Consider expanding merchant network to diversify revenue")
     
     print(f"\n3. Marketing Opportunities:")
-    print(f"   - {customers['marketing_allowed']:,} customers opted in for marketing")
+    print(f"   - {metrics['customers_marketing']:,} customers opted in for marketing")
     print(f"   - Target inactive customers with special offers")
     print(f"   - Leverage top potential customers for referral programs")
     
     print(f"\n4. Revenue Optimization:")
-    print(f"   - Platform processes ${merchants['daily_platform_volume']:,.2f}/day")
+    print(f"   - Platform processes ${metrics['daily']:,.2f}/day")
     print(f"   - Focus on increasing transaction frequency")
     print(f"   - Consider merchant incentives to boost volume")
     
