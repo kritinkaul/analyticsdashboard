@@ -1,0 +1,123 @@
+{
+  "timestamp": "2025-08-12 09:17:16",
+  "data_period": "60 days (Feb 7, 2025 - Aug 8, 2025)",
+  "customers": {
+    "total_customers": 21997,
+    "active_customers": 1152,
+    "inactive_customers": 20845,
+    "marketing_allowed": 2602,
+    "daily_registrations": {
+      "2025-07-09": 34,
+      "2025-07-10": 46,
+      "2025-07-11": 47,
+      "2025-07-12": 49,
+      "2025-07-13": 46,
+      "2025-07-14": 41,
+      "2025-07-15": 21,
+      "2025-07-16": 42,
+      "2025-07-17": 37,
+      "2025-07-18": 53,
+      "2025-07-19": 41,
+      "2025-07-20": 43,
+      "2025-07-21": 31,
+      "2025-07-22": 34,
+      "2025-07-23": 33,
+      "2025-07-24": 43,
+      "2025-07-25": 35,
+      "2025-07-26": 30,
+      "2025-07-27": 43,
+      "2025-07-28": 30,
+      "2025-07-29": 43,
+      "2025-07-30": 34,
+      "2025-07-31": 29,
+      "2025-08-01": 38,
+      "2025-08-02": 52,
+      "2025-08-03": 28,
+      "2025-08-04": 44,
+      "2025-08-05": 30,
+      "2025-08-06": 29,
+      "2025-08-07": 46
+    }
+  },
+  "merchants": {
+    "total_merchants": 3,
+    "active_merchants": 3,
+    "inactive_merchants": 0,
+    "merchant_metrics": {
+      "POKE HANA": {
+        "gross_sales": 289728.26,
+        "net_sales": 287800.86,
+        "daily_avg": 4796.681,
+        "weekly_avg": 33576.767,
+        "monthly_avg": 143900.43,
+        "is_active": true,
+        "date_range": ""
+      },
+      "MARATHON LIQUORS": {
+        "gross_sales": 428973.0,
+        "net_sales": 426703.17,
+        "daily_avg": 7111.7195,
+        "weekly_avg": 49782.0365,
+        "monthly_avg": 213351.585,
+        "is_active": true,
+        "date_range": ""
+      },
+      "Anthony's Pizza & Pasta": {
+        "gross_sales": 68179.91,
+        "net_sales": 66290.19,
+        "daily_avg": 1104.8365000000001,
+        "weekly_avg": 7733.855500000001,
+        "monthly_avg": 33145.095,
+        "is_active": true,
+        "date_range": ""
+      }
+    },
+    "total_volume": 780794.22,
+    "daily_platform_volume": 13013.237,
+    "weekly_platform_volume": 91092.659,
+    "monthly_platform_volume": 390397.11
+  },
+  "predictions": {
+    "POKE HANA": {
+      "next_2_months": 287800.86,
+      "same_period_next_year": 316580.946,
+      "current_monthly_avg": 143900.43
+    },
+    "MARATHON LIQUORS": {
+      "next_2_months": 426703.17,
+      "same_period_next_year": 469373.487,
+      "current_monthly_avg": 213351.585
+    },
+    "Anthony's Pizza & Pasta": {
+      "next_2_months": 66290.19,
+      "same_period_next_year": 72919.209,
+      "current_monthly_avg": 33145.095
+    }
+  },
+  "top_customers": [
+    {
+      "Customer ID": "H1AS30SJXA5XE",
+      "First Name": "Abigail",
+      "Last Name": "Eischen",
+      "Customer Since": "2025-08-07 12:21:00",
+      "Marketing Allowed": "Yes",
+      "score": 9
+    },
+    {
+      "Customer ID": "212FT96Y0KNJE",
+      "First Name": "Yasmin",
+      "Last Name": "Lansiquot",
+      "Customer Since": "2025-08-07 12:12:00",
+      "Marketing Allowed": "Yes",
+      "score": 9
+    },
+    {
+      "Customer ID": "VMASB649S2262",
+      "First Name": "Diane",
+      "Last Name": "Goskie",
+      "Customer Since": "2025-08-06 16:43:00",
+      "Marketing Allowed": "Yes",
+      "score": 9
+    }
+  ]
+}
