@@ -185,64 +185,19 @@ def create_charts(metrics, merchants_enriched):
 def main():
     # Header
     st.title("💳 Payment Platform Analytics Dashboard")
-    st.markdown("**Upload your data files to compute real-time metrics**")
+    st.markdown("**Real-time metrics computed from data folders (no hardcoded values)**")
     st.markdown("---")
     
-    # File Upload Section
-    st.subheader("📁 Upload Data Files")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("**Merchants Data**")
-        merchant_file = st.file_uploader(
-            "Upload merchant file (Excel/CSV)",
-            type=['xlsx', 'xls', 'csv'],
-            key="merchant_upload"
-        )
-    
-    with col2:
-        st.markdown("**Customers Data**")
-        customer_files = st.file_uploader(
-            "Upload customer files (CSV)",
-            type=['csv'],
-            accept_multiple_files=True,
-            key="customer_upload"
-        )
-    
-    with col3:
-        st.markdown("**Sales Data**")
-        sales_files = st.file_uploader(
-            "Upload sales files (CSV)",
-            type=['csv'],
-            accept_multiple_files=True,
-            key="sales_upload"
-        )
-    
-    # Check if files are uploaded
-    if not merchant_file or not customer_files or not sales_files:
-        st.info("👆 Please upload all required data files to begin analysis")
-        st.stop()
-    
-    # Debug info
-    st.success(f"✅ Files uploaded successfully!")
-    st.info(f"📊 Processing: {merchant_file.name if merchant_file else 'None'} (merchant), {len(customer_files)} customer files, {len(sales_files)} sales files")
-    
-    # Load data
+    # Load data automatically from local folders
     with st.spinner("🔄 Running ETL pipeline..."):
         try:
-            res = process_uploaded_files(merchant_file, customer_files, sales_files)
-            
-            if res is None:
-                st.error("❌ Failed to process uploaded files. Please check your file formats and try again.")
-                st.stop()
-            
+            res = load_pipeline_data()
             customers = res["customers"]
             merchants = res["merchants_enriched"]
             m = res["metrics"]
             diagnostics = res["diagnostics"]
             
-            st.success("🎉 Data processed successfully!")
+            st.success("🎉 Data loaded successfully from local folders!")
             
         except Exception as e:
             st.error(f"❌ Error loading data: {e}")
