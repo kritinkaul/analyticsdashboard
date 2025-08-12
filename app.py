@@ -37,6 +37,56 @@ def load_pipeline_data():
     """Load and cache pipeline results"""
     return run_pipeline_from_folders()
 
+def process_uploaded_files(merchant_file, customer_files, sales_files):
+    """Process uploaded files and return pipeline results"""
+    import tempfile
+    import os
+    from pathlib import Path
+    
+    # Create temporary directory structure
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create subdirectories
+        merchants_dir = os.path.join(temp_dir, "merchants")
+        customers_dir = os.path.join(temp_dir, "customers")
+        sales_dir = os.path.join(temp_dir, "sales")
+        
+        os.makedirs(merchants_dir, exist_ok=True)
+        os.makedirs(customers_dir, exist_ok=True)
+        os.makedirs(sales_dir, exist_ok=True)
+        
+        # Save uploaded files to temp directories
+        if merchant_file:
+            merchant_path = os.path.join(merchants_dir, merchant_file.name)
+            with open(merchant_path, "wb") as f:
+                f.write(merchant_file.getbuffer())
+        
+        for i, customer_file in enumerate(customer_files):
+            customer_path = os.path.join(customers_dir, f"customer_{i}_{customer_file.name}")
+            with open(customer_path, "wb") as f:
+                f.write(customer_file.getbuffer())
+        
+        for i, sales_file in enumerate(sales_files):
+            sales_path = os.path.join(sales_dir, f"sales_{i}_{sales_file.name}")
+            with open(sales_path, "wb") as f:
+                f.write(sales_file.getbuffer())
+        
+        # Temporarily modify DATA_GLOBS to point to temp directories
+        from src.config import DATA_GLOBS
+        original_globs = DATA_GLOBS.copy()
+        
+        try:
+            # Update globs to use temp directories
+            DATA_GLOBS["merchants"] = [merchants_dir + "/*"]
+            DATA_GLOBS["customers"] = [customers_dir + "/*"]
+            DATA_GLOBS["sales"] = [sales_dir + "/*"]
+            
+            # Run pipeline
+            return run_pipeline_from_folders()
+        finally:
+            # Restore original globs
+            DATA_GLOBS.clear()
+            DATA_GLOBS.update(original_globs)
+
 def create_charts(metrics, merchants_enriched):
     """Create visualization charts"""
     
@@ -86,13 +136,49 @@ def create_charts(metrics, merchants_enriched):
 def main():
     # Header
     st.title("💳 Payment Platform Analytics Dashboard")
-    st.markdown("**Real-time metrics computed from data folders (no hardcoded values)**")
+    st.markdown("**Upload your data files to compute real-time metrics**")
     st.markdown("---")
+    
+    # File Upload Section
+    st.subheader("📁 Upload Data Files")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("**Merchants Data**")
+        merchant_file = st.file_uploader(
+            "Upload merchant file (Excel/CSV)",
+            type=['xlsx', 'xls', 'csv'],
+            key="merchant_upload"
+        )
+    
+    with col2:
+        st.markdown("**Customers Data**")
+        customer_files = st.file_uploader(
+            "Upload customer files (CSV)",
+            type=['csv'],
+            accept_multiple_files=True,
+            key="customer_upload"
+        )
+    
+    with col3:
+        st.markdown("**Sales Data**")
+        sales_files = st.file_uploader(
+            "Upload sales files (CSV)",
+            type=['csv'],
+            accept_multiple_files=True,
+            key="sales_upload"
+        )
+    
+    # Check if files are uploaded
+    if not merchant_file or not customer_files or not sales_files:
+        st.info("👆 Please upload all required data files to begin analysis")
+        st.stop()
     
     # Load data
     with st.spinner("🔄 Running ETL pipeline..."):
         try:
-            res = load_pipeline_data()
+            res = process_uploaded_files(merchant_file, customer_files, sales_files)
             customers = res["customers"]
             merchants = res["merchants_enriched"]
             m = res["metrics"]
