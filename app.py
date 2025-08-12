@@ -42,6 +42,7 @@ def process_uploaded_files(merchant_file, customer_files, sales_files):
     import tempfile
     import os
     from pathlib import Path
+    import pandas as pd
     
     # Create temporary directory structure
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -70,22 +71,70 @@ def process_uploaded_files(merchant_file, customer_files, sales_files):
             with open(sales_path, "wb") as f:
                 f.write(sales_file.getbuffer())
         
-        # Temporarily modify DATA_GLOBS to point to temp directories
-        from src.config import DATA_GLOBS
-        original_globs = DATA_GLOBS.copy()
+        # Import ETL functions directly
+        from src.etl import load_merchants, load_customers, load_sales, enrich_and_metrics
         
+        # Load data using the ETL functions
         try:
-            # Update globs to use temp directories
-            DATA_GLOBS["merchants"] = [merchants_dir + "/*"]
-            DATA_GLOBS["customers"] = [customers_dir + "/*"]
-            DATA_GLOBS["sales"] = [sales_dir + "/*"]
+            # Temporarily modify the discover_files function to use our temp dirs
+            import src.utils
+            original_discover_files = src.utils.discover_files
             
-            # Run pipeline
-            return run_pipeline_from_folders()
-        finally:
-            # Restore original globs
-            DATA_GLOBS.clear()
-            DATA_GLOBS.update(original_globs)
+            def temp_discover_files(patterns):
+                """Temporary file discovery for uploaded files"""
+                if "merchants" in str(patterns):
+                    return [os.path.join(merchants_dir, f) for f in os.listdir(merchants_dir)]
+                elif "customers" in str(patterns):
+                    return [os.path.join(customers_dir, f) for f in os.listdir(customers_dir)]
+                elif "sales" in str(patterns):
+                    return [os.path.join(sales_dir, f) for f in os.listdir(sales_dir)]
+                return []
+            
+            # Replace the discover_files function temporarily
+            src.utils.discover_files = temp_discover_files
+            
+            try:
+                # Load data
+                merchants = load_merchants()
+                customers = load_customers()
+                sales = load_sales()
+                
+                # Enrich and compute metrics
+                enriched, metrics = enrich_and_metrics(merchants, customers, sales)
+                
+                # Create diagnostics
+                diagnostics = {
+                    "files_discovered": {
+                        "merchants": len(os.listdir(merchants_dir)),
+                        "customers": len(os.listdir(customers_dir)),
+                        "sales": len(os.listdir(sales_dir))
+                    },
+                    "data_loaded": {
+                        "merchants": len(merchants),
+                        "customers": len(customers),
+                        "sales_merchants": len(sales)
+                    },
+                    "coverage": {
+                        "merchants_with_item_data": enriched["net_sales_60d_item"].notna().sum(),
+                        "merchants_using_fallback": len(enriched) - enriched["net_sales_60d_item"].notna().sum()
+                    }
+                }
+                
+                return {
+                    "customers": customers,
+                    "merchants_enriched": enriched,
+                    "metrics": metrics,
+                    "diagnostics": diagnostics
+                }
+                
+            finally:
+                # Restore original discover_files function
+                src.utils.discover_files = original_discover_files
+                
+        except Exception as e:
+            st.error(f"Error processing uploaded files: {str(e)}")
+            st.exception(e)
+            return None
 
 def create_charts(metrics, merchants_enriched):
     """Create visualization charts"""
@@ -175,17 +224,29 @@ def main():
         st.info("👆 Please upload all required data files to begin analysis")
         st.stop()
     
+    # Debug info
+    st.success(f"✅ Files uploaded successfully!")
+    st.info(f"📊 Processing: {merchant_file.name if merchant_file else 'None'} (merchant), {len(customer_files)} customer files, {len(sales_files)} sales files")
+    
     # Load data
     with st.spinner("🔄 Running ETL pipeline..."):
         try:
             res = process_uploaded_files(merchant_file, customer_files, sales_files)
+            
+            if res is None:
+                st.error("❌ Failed to process uploaded files. Please check your file formats and try again.")
+                st.stop()
+            
             customers = res["customers"]
             merchants = res["merchants_enriched"]
             m = res["metrics"]
             diagnostics = res["diagnostics"]
             
+            st.success("🎉 Data processed successfully!")
+            
         except Exception as e:
             st.error(f"❌ Error loading data: {e}")
+            st.exception(e)
             st.stop()
     
     # KPI Section
