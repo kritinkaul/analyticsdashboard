@@ -205,51 +205,6 @@ def load_sales(sales_files):
     
     return pd.DataFrame(sales_data) if sales_data else pd.DataFrame(columns=["merchant_name_key", "net_sales_60d"])
 
-def _norm_key(x: str):
-    if pd.isna(x):
-        return None
-    return ''.join(ch for ch in str(x).upper() if ch.isalnum())
-
-def load_merchant_master(merchant_files):
-    """Load merchant master Excel(s) and standardize columns."""
-    if not merchant_files:
-        return pd.DataFrame()
-    frames = []
-    for p in merchant_files:
-        try:
-            excel = pd.ExcelFile(p)
-            # pick first sheet with at least 2 cols
-            for sheet in excel.sheet_names:
-                df = excel.parse(sheet)
-                if df.shape[1] >= 2:
-                    frames.append(df)
-                    break
-        except Exception as e:
-            st.warning(f"Could not parse merchant file {os.path.basename(p)}: {e}")
-    if not frames:
-        return pd.DataFrame()
-    m = pd.concat(frames, ignore_index=True, sort=False)
-    # Clean columns
-    m.columns = [str(c).strip() for c in m.columns]
-    # Identify name columns
-    legal_col = next((c for c in m.columns if 'legal' in c.lower() and 'name' in c.lower()), None)
-    if not legal_col:
-        legal_col = next((c for c in m.columns if 'merchant' in c.lower() and 'name' in c.lower()), None)
-    dba_col = next((c for c in m.columns if 'dba' in c.lower()), None)
-    mtd_col = next((c for c in m.columns if 'mtd' in c.lower()), None)
-    lm_col = next((c for c in m.columns if 'last' in c.lower() and 'month' in c.lower()), None)
-    out = pd.DataFrame()
-    if legal_col: out['legal_name'] = m[legal_col]
-    if dba_col: out['dba_name'] = m[dba_col]
-    if mtd_col: out['mtd_volume_raw'] = pd.to_numeric(m[mtd_col].astype(str).str.replace(r"[^\d\.\-]","", regex=True), errors='coerce')
-    if lm_col: out['last_month_volume_raw'] = pd.to_numeric(m[lm_col].astype(str).str.replace(r"[^\d\.\-]","", regex=True), errors='coerce')
-    out['legal_name'] = out.get('legal_name', pd.Series(dtype=str))
-    out['dba_name'] = out.get('dba_name', out['legal_name'])
-    out['merchant_name_key'] = out['dba_name'].fillna(out['legal_name']).map(_norm_key)
-    # Active merchant rule: (MTD + LastMonth) > 0 proxy
-    out['active_flag'] = (out.get('mtd_volume_raw', 0).fillna(0) + out.get('last_month_volume_raw',0).fillna(0)) > 0
-    return out
-
 # Data loading with real processing
 @st.cache_data
 def load_real_data():
