@@ -206,7 +206,7 @@ def load_sales(sales_files):
     return pd.DataFrame(sales_data) if sales_data else pd.DataFrame(columns=["merchant_name_key", "net_sales_60d"])
 
 # Data loading with real processing
-@st.cache_data
+# Data loading with real processing
 def load_real_data():
     """Load and process real data from files"""
     
